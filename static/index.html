@@ -516,6 +516,20 @@ function selectedWorkerIds(ipId) {
     return [...document.querySelectorAll(`#chips-${ipId} .acc-chip.on`)].map(x => x.dataset.wid);
 }
 
+
+function isGroupOpen(id){ return localStorage.getItem("fwd-open-"+id)!=="0"; }
+function setGroupOpen(id,o){ localStorage.setItem("fwd-open-"+id, o?"1":"0"); }
+function toggleGroupEdit(id){
+  const open=!isGroupOpen(id);
+  setGroupOpen(id,open);
+  const btn=document.getElementById("gopen-"+id);
+  if(btn) btn.textContent=open?"关闭本组":"打开本组";
+  const card=btn?btn.closest(".group-card")||btn.closest(".card")||btn.parentElement.parentElement:null;
+  if(!card) return;
+  const kids=[...card.children];
+  const idx=kids.findIndex(n=>n.contains(btn));
+  kids.forEach((n,i)=>{ if(i>idx) n.style.display=open?"":"none"; });
+}
 function renderGroups() {
     const list = STATE.groups || [];
     const workers = STATE.workers || [];
@@ -530,18 +544,23 @@ function renderGroups() {
         return `<div class="fwd-card account-card" style="flex-direction:column;align-items:stretch;">
             <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;">
                 <div>
-                    <div class="name">源：${esc(g.source)}
+                    <div class="name">源：${esc(g.source_remark || g.source)}
                         ${running ? '<span class="badge badge-green">运行中</span>' : '<span class="badge badge-gray">已停止</span>'}
                     </div>
-                    <div class="detail">组 ID ${esc(g.id)} · 已转发 ${g.forwarded || 0} 条 · 目标 ${targets.length} 个</div>
+                    <div class="detail">已转发 ${g.forwarded || 0} 条 · 目标 ${targets.length} 个</div>
                 </div>
                 <div class="account-actions">
                     <button class="btn btn-success btn-sm" onclick="collectNow('${g.id}')">立即采集发布</button>
                                         <button class="btn btn-success btn-sm" onclick="startGroup('${g.id}')">启动本组</button>
                     <button class="btn btn-warning btn-sm" onclick="stopGroup('${g.id}')">停止</button>
                     <button class="btn btn-danger btn-sm" onclick="delGroup('${g.id}')">删除组</button>
+                    <button class="btn btn-primary btn-sm" id="gopen-${g.id}" onclick="toggleGroupEdit('${g.id}')">${isGroupOpen(g.id)?"关闭本组":"打开本组"}</button>
+                    
+            </div>
+            <div id="gbody-${g.id}" style="display:${isGroupOpen(g.id)?"":"none"}">
                 </div>
             </div>
+            <div id="gbody-${g.id}" style="display:${isGroupOpen(g.id)?"":"none"}">
             <div class="form-row" style="margin-top:12px;">
                 <div class="form-group">
                     <label>源备注标注</label>
@@ -577,7 +596,7 @@ function renderGroups() {
                 <div style="flex:1;min-width:160px;"><b>${esc(t.username)}</b> <span class="muted">${esc(t.remark || '')}</span></div>
                 <select id="tbot-${g.id}-${t.id}">
                     <option value="">指定发送Bot</option>
-                    ${(STATE.bots||[]).map(b=>`<option value="${b.id}" ${t.bot_id===b.id?'selected':''}>${esc(b.remark||'Bot')}</option>`).join('')}
+                    ${(STATE.bots||[]).map(b=>`<option value="${b.id}" ${t.bot_id===b.id?'selected':''}>${esc(b.remark||b.id)}</option>`).join('')}
                 </select>
                 <button class="btn btn-success btn-sm" onclick="saveTargetBot('${g.id}','${t.id}')">确认专用Bot</button>
                 <button class="btn btn-danger btn-sm" onclick="delTarget('${g.id}','${t.id}')">删除</button>
