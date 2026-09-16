@@ -381,6 +381,9 @@ async function fillBotsThenRender(){
 }
 async function keepBots(){}
 async function refreshAll() {
+    const ae=document.activeElement;
+    if(ae && /INPUT|TEXTAREA|SELECT/.test(ae.tagName) && ae.closest("#tab-forward")) return;
+
     try {
         const data = await api('/api/overview');
         STATE = Object.assign(STATE, data);
@@ -640,7 +643,7 @@ async function saveTargetBot(gid,tid){
   const botId=$("tbot-"+gid+"-"+tid).value;
   const r=await api("/api/groups/"+gid+"/target-bot","POST",{target_id:tid,bot_id:botId});
   toast(r.message||"已指定");
-  refreshAll();
+  const _sy=window.scrollY; refreshAll(); window.scrollTo(0,_sy);
 }
 async function addTarget(id) {
     const username = $('gt-'+id).value.trim();
@@ -649,7 +652,7 @@ async function addTarget(id) {
     const r = await api(`/api/groups/${id}/targets`, 'POST', { username, remark });
     if (r.status !== 'ok') return toast(r.message || '失败');
     toast('目标已加入本组');
-    refreshAll();
+    const _sy=window.scrollY; refreshAll(); window.scrollTo(0,_sy);
 }
 async function delTarget(gid, tid) {
     if (!confirm('删除该目标订阅号？')) return;
