@@ -1,0 +1,819 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TG 订阅转发 Pro</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            background: #f0f2f5;
+            min-height: 100vh;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header h1 { font-size: 22px; }
+        .header .monitor-badge {
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: bold;
+        }
+        .monitor-badge.active { background: #4caf50; }
+        .monitor-badge.inactive { background: rgba(255,255,255,0.2); }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 18px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        .stat-card .number { font-size: 28px; font-weight: bold; }
+        .stat-card .label { font-size: 12px; color: #888; margin-top: 4px; }
+        .stat-card .number.blue { color: #2196f3; }
+        .stat-card .number.green { color: #4caf50; }
+        .stat-card .number.orange { color: #ff9800; }
+        .stat-card .number.red { color: #f44336; }
+        .stat-card .number.purple { color: #9c27b0; }
+        .tabs {
+            display: flex;
+            background: white;
+            border-radius: 12px 12px 0 0;
+            overflow-x: auto;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        .tab {
+            padding: 14px 24px;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            font-size: 14px;
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+        .tab:hover { background: #f5f5f5; }
+        .tab.active { border-bottom-color: #667eea; color: #667eea; font-weight: bold; }
+        .tab-content {
+            background: white;
+            border-radius: 0 0 12px 12px;
+            padding: 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            margin-bottom: 20px;
+            display: none;
+        }
+        .tab-content.active { display: block; }
+        .form-row { display: flex; gap: 12px; margin-bottom: 15px; flex-wrap: wrap; align-items: flex-end; }
+        .form-group { flex: 1; min-width: 180px; }
+        .form-group label { display: block; font-size: 13px; color: #666; margin-bottom: 5px; }
+        input, textarea, select {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        input:focus, textarea:focus, select:focus { border-color: #667eea; outline: none; }
+        textarea { resize: vertical; min-height: 90px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+        }
+        .btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        .btn-primary { background: #667eea; color: white; }
+        .btn-success { background: #4caf50; color: white; }
+        .btn-danger { background: #f44336; color: white; }
+        .btn-warning { background: #ff9800; color: white; }
+        .btn-info { background: #2196f3; color: white; }
+        .btn-ghost { background: #f3f4f6; color: #333; }
+        .btn-sm { padding: 6px 12px; font-size: 12px; }
+        .account-card {
+            border: 1px solid #eee;
+            border-radius: 10px;
+            padding: 16px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 12px;
+        }
+        .account-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+        .account-info { flex: 1; min-width: 0; }
+        .account-info .name { font-weight: bold; font-size: 15px; }
+        .account-info .detail { font-size: 12px; color: #888; margin-top: 4px; word-break: break-all; }
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+        .status-dot.online { background: #4caf50; }
+        .status-dot.offline { background: #ccc; }
+        .status-dot.error { background: #f44336; }
+        .status-dot.running { background: #2196f3; }
+        .account-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+        .section-title { font-size: 16px; font-weight: bold; margin-bottom: 15px; color: #333; }
+        .hint { color: #666; font-size: 13px; margin-bottom: 12px; line-height: 1.6; }
+        .divider { height: 1px; background: #eee; margin: 20px 0; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
+        th { background: #f8f9fa; font-weight: 600; color: #555; }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal.active { display: flex; }
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            width: 90%;
+            max-width: 480px;
+        }
+        .modal-content h3 { margin-bottom: 16px; }
+        .log-box {
+            background: #1a1a2e;
+            color: #0f0;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 360px;
+            overflow-y: auto;
+            margin-top: 15px;
+        }
+        .log-box .log-time { color: #888; }
+        .log-box .log-info { color: #4caf50; }
+        .log-box .log-error { color: #f44336; }
+        .log-box .log-warn { color: #ff9800; }
+        .acc-chip {
+            display: inline-block; margin: 3px 4px 0 0; padding: 4px 10px;
+            border-radius: 14px; border: 1px solid #cbd5e1; background: #f8fafc;
+            cursor: pointer; font-size: 12px; user-select: none;
+        }
+        .acc-chip.on { outline: 2px solid #2563eb; background: #dbeafe; font-weight: 600; }
+        .acc-chip.bound { outline: 2px solid #22c55e; background: #dcfce7; }
+        .ip-card, .api-card, .fwd-card {
+            border: 1px solid #eee;
+            border-radius: 10px;
+            padding: 14px;
+            margin-bottom: 10px;
+            background: #fafafa;
+        }
+        .fwd-card { background: #fff; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; }
+        .badge-green { background: #dcfce7; color: #166534; }
+        .badge-gray { background: #f3f4f6; color: #6b7280; }
+        .badge-blue { background: #dbeafe; color: #1e40af; }
+        .badge-red { background: #fee2e2; color: #991b1b; }
+        .badge-orange { background: #ffedd5; color: #9a3412; }
+        .muted { color: #888; font-size: 12px; }
+        .target-row { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
+        .toast {
+            position: fixed; right: 20px; bottom: 20px; background: #333; color: #fff;
+            padding: 10px 16px; border-radius: 8px; display: none; z-index: 2000; font-size: 13px;
+        }
+    
+select[multiple] option { color:#6b7280; background:#f3f4f6; }
+select[multiple] option:checked {
+  background:#22c55e !important;
+  color:#fff !important;
+}
+</style>
+</head>
+<body>
+    <div class="header">
+        <h1>TG 订阅转发 Pro</h1>
+        <div style="display:flex;align-items:center;gap:12px;">
+            <span id="engine-badge" class="monitor-badge inactive">引擎未启动</span>
+            <button onclick="doLogout()" style="padding:5px 12px;border-radius:15px;border:1px solid rgba(255,255,255,0.5);background:transparent;color:white;cursor:pointer;font-size:12px;">退出</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="stats-row">
+            <div class="stat-card"><div class="number blue" id="stat-groups">0</div><div class="label">转发组</div></div>
+            <div class="stat-card"><div class="number green" id="stat-running">0</div><div class="label">运行中组</div></div>
+            <div class="stat-card"><div class="number orange" id="stat-workers">0</div><div class="label">水军号</div></div>
+            <div class="stat-card"><div class="number purple" id="stat-online">0</div><div class="label">在线水军</div></div>
+            <div class="stat-card"><div class="number" id="stat-ip" style="color:#0ea5e9;">0</div><div class="label">IP池</div></div>
+            <div class="stat-card"><div class="number" id="stat-api" style="color:#8b5cf6;">0</div><div class="label">API池</div></div>
+            <div class="stat-card"><div class="number red" id="stat-fwd">0</div><div class="label">已转发</div></div>
+        </div>
+
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('forward')">订阅转发</div>
+            <div class="tab" onclick="switchTab('workers')">水军账号</div>
+            <div class="tab" onclick="switchTab('bots')">发布机器人</div>
+            <div class="tab" onclick="switchTab('ip')">IP池</div>
+            <div class="tab" onclick="switchTab('api')">API池</div>
+            <div class="tab" onclick="switchTab('logs')">运行日志</div>
+        </div>
+
+        <!-- 订阅转发：1源 + 多目标 = 一组 -->
+        <div class="tab-content active" id="tab-forward">
+            <div class="section-title">新建转发组（1 个源订阅 → 多个目标订阅）</div>
+            <p class="hint">一组 = 1 个源订阅号 + 可自主添加的多个目标订阅号。源新增后立刻可保存备注标注。水军启动后自动匹配空闲 API，按绑定 IP 登录，监听源频道新消息并转发到本组全部目标。</p>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>源订阅号（@username / t.me/xxx / -100id）</label>
+                    <input id="src-input" placeholder="@source_channel">
+                </div>
+                <div class="form-group">
+                    <label>源备注标注</label>
+                    <input id="src-remark" placeholder="例如：印尼日化货源频道">
+                </div>
+                <div class="form-group" style="flex:0 0 auto;">
+                    <label>&nbsp;</label>
+                    <button class="btn btn-primary" onclick="createGroup()">新增转发组</button>
+                </div>
+            </div>
+            <div id="group-list"></div>
+        </div>
+
+        
+        <div class="tab-content" id="tab-bots">
+            <div class="section-title">固定发布 Bot</div>
+            <p class="hint">填写 Bot Token 和备注后添加。把 Bot 拉进目标频道并设管理员。源监听仍用水军，发布走 Bot，图+视频+文案一次发出。</p>
+            <div class="form-row">
+                <div class="form-group"><label>Bot Token</label><input id="bot-token" placeholder="123456:AAHxxxx"></div>
+                <div class="form-group"><label>固定备注</label><input id="bot-remark" placeholder="例如：快约发布Bot"></div>
+                <div class="form-group" style="flex:0 0 auto;"><label>&nbsp;</label><button class="btn btn-primary" onclick="addBot()">添加Bot</button></div>
+            </div>
+            <div id="bot-list"></div>
+        </div>
+        <!-- 水军 -->
+        <div class="tab-content" id="tab-workers">
+            <div class="section-title">水军账号管理与验证配置</div>
+            <p class="hint">添加手机号后点「启动」发送验证码。登录时自动匹配 1 个空闲 API（1 水军 = 1 API）。每个号可单独删除 / 启动，备注可即时保存。</p>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>手机号（含国家码）</label>
+                    <input id="w-phone" placeholder="+62812xxxxxxxx">
+                </div>
+                <div class="form-group">
+                    <label>两步验证密码（选填）</label>
+                    <input id="w-2fa" type="password" placeholder="如开启 2FA 请填写">
+                </div>
+                <div class="form-group">
+                    <label>备注</label>
+                    <input id="w-remark" placeholder="例如：转发主号1">
+                </div>
+                <div class="form-group" style="flex:0 0 auto;">
+                    <label>&nbsp;</label>
+                    <button class="btn btn-primary" onclick="addWorker()">添加水军号</button>
+                </div>
+            </div>
+            <div id="worker-list"></div>
+        </div>
+
+        <!-- IP 池：上框只填新增 + 保存，下方已保存列表，每条多选绑定水军 -->
+        <div class="tab-content" id="tab-ip">
+            <div class="section-title">IP 代理池</div>
+            <p class="hint">上框只填新增代理，点保存追加到下方列表（不覆盖已有）。每条可独立勾选指定水军号并绑定。支持 socks5 / http。<br>格式每行一条：<code>socks5://user:pass@host:port</code> 或 <code>host:port</code></p>
+            <textarea id="ip-new-text" rows="5" placeholder="socks5://user:pass@1.2.3.4:1080&#10;http://1.2.3.4:8080&#10;1.2.3.4:1080"></textarea>
+            <div style="margin-top:10px;display:flex;gap:8px;">
+                <button class="btn btn-primary" onclick="addIps()">保存新增代理</button>
+            </div>
+            <div class="divider"></div>
+            <div class="section-title">已保存代理列表</div>
+            <div id="ip-saved-list"></div>
+        </div>
+
+        <!-- API 池：一键批量添加，每条单独删除，1水军1API -->
+        <div class="tab-content" id="tab-api">
+            <div class="section-title">API 池</div>
+            <p class="hint">一键批量添加。每条 API 带独立删除键。调度规则：水军登录时自动匹配 1 个空闲 API（1 个水军自动配置 1 个 API，已占用的不再分配）。<br>格式每行：<code>api_id,api_hash</code> ，从 my.telegram.org 申请。</p>
+            <textarea id="api-new-text" rows="6" placeholder="12345678,0123456789abcdef0123456789abcdef"></textarea>
+            <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+                <button class="btn btn-primary" onclick="addApis()">一键批量添加</button>
+            </div>
+            <div class="divider"></div>
+            <div class="section-title">已保存 API 列表</div>
+            <div id="api-saved-list"></div>
+        </div>
+
+        <!-- 日志 -->
+        <div class="tab-content" id="tab-logs">
+            <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;">
+                <span>运行日志</span>
+                <button class="btn btn-ghost btn-sm" onclick="loadLogs()">刷新</button>
+            </div>
+            <div class="log-box" id="log-box">暂无日志</div>
+        </div>
+    </div>
+
+    <div class="modal" id="verify-modal">
+        <div class="modal-content">
+            <h3>水军登入验证</h3>
+            <p class="hint" id="verify-hint">验证码已发到 Telegram，请填写。</p>
+            <div class="form-group" style="margin-bottom:12px;">
+                <label>验证码</label>
+                <input id="verify-code" placeholder="短信 / App 验证码">
+            </div>
+            <div class="form-group" style="margin-bottom:20px;">
+                <label>两步验证密码（如有）</label>
+                <input id="verify-password" type="password" placeholder="未开启可留空">
+            </div>
+            <div style="display:flex;gap:8px;">
+                <button class="btn btn-primary" onclick="submitVerify()">确认</button>
+                <button class="btn btn-ghost" onclick="closeModal()">取消</button>
+            </div>
+        </div>
+    </div>
+    <div class="toast" id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let STATE = { workers: [], apis: [], ips: [], groups: [], stats: {}, logs: [] };
+let VERIFY_ID = null;
+
+function switchTab(name) {
+    document.querySelectorAll('.tab').forEach((t, i) => {
+        t.classList.toggle('active', t.getAttribute('onclick').includes("'" + name + "'"));
+    });
+    document.querySelectorAll('.tab-content').forEach(p => p.classList.remove('active'));
+    $('tab-' + name).classList.add('active');
+    if (name === 'logs') loadLogs();
+}
+
+function toast(msg) {
+    const el = $('toast');
+    el.textContent = msg;
+    el.style.display = 'block';
+    setTimeout(() => el.style.display = 'none', 2200);
+}
+
+async function api(path, method='GET', body=null) {
+    const opt = { method, headers: { 'Content-Type': 'application/json' } };
+    if (body !== null) opt.body = JSON.stringify(body);
+    const res = await fetch(path, opt);
+    if (res.status === 401) { location.href = '/login.html'; throw new Error('未登录'); }
+    return res.json();
+}
+
+async function fillBotsThenRender(){
+  try{
+    const r = await fetch("/api/botlist").then(x=>x.json());
+    STATE.bots = r.bots || [];
+  }catch(e){}
+}
+async function keepBots(){}
+async function refreshAll() {
+    try {
+        const data = await api('/api/overview');
+        STATE = Object.assign(STATE, data);
+        renderStats();
+        renderWorkers();
+        loadBots();
+        renderApis();
+        renderIps();
+        renderGroups();
+    } catch (e) { console.error(e); }
+}
+
+function renderStats() {
+    const s = STATE.stats || {};
+    $('stat-groups').textContent = s.groups || 0;
+    $('stat-running').textContent = s.running_groups || 0;
+    $('stat-workers').textContent = s.workers || 0;
+    $('stat-online').textContent = s.online_workers || 0;
+    $('stat-ip').textContent = s.ips || 0;
+    $('stat-api').textContent = s.apis || 0;
+    $('stat-fwd').textContent = s.forwarded || 0;
+    const badge = $('engine-badge');
+    if ((s.running_groups || 0) > 0) {
+        badge.textContent = '转发运行中';
+        badge.className = 'monitor-badge active';
+    } else {
+        badge.textContent = '引擎待命';
+        badge.className = 'monitor-badge inactive';
+    }
+}
+
+function esc(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+
+async function loadBots(){ renderBots(); }
+function renderBots(){ const list=STATE.bots||[]; const el=$('bot-list'); if(!el) return; if(!list.length){el.innerHTML='<p class="muted">还没有发布Bot。</p>';return;}
+el.innerHTML=list.map(b=>`<div class="account-card"><div class="account-info"><div class="name">${esc(b.remark||'发布Bot')}</div><div class="detail">Token ${esc((b.token||'').slice(0,10))}…</div></div><div class="account-actions"><button class="btn btn-danger btn-sm" onclick="delBot('${b.id}')">删除</button></div></div>`).join('');}
+async function addBot(){ const token=$('bot-token').value.trim(); const remark=$('bot-remark').value.trim(); if(!token) return toast('请填写Bot Token'); const r=await api('/api/bots','POST',{token,remark}); toast(r.status==='ok'?'Bot已添加':(r.message||'失败')); if(r.status==='ok') refreshAll(); }
+async function delBot(id){ if(!confirm('删除该Bot？'))return; await api('/api/bots/'+id,'DELETE'); refreshAll(); }
+function renderWorkers() {
+    const list = STATE.workers || [];
+    if (!list.length) {
+        $('worker-list').innerHTML = '<p class="muted">暂无水军号，先在上方添加。</p>';
+        return;
+    }
+    $('worker-list').innerHTML = list.map(w => {
+        const st = w.status || 'offline';
+        const dot = st === 'online' || st === 'running' ? 'online' : (st === 'error' ? 'error' : 'offline');
+        const apiTxt = w.api_id ? ('API ' + w.api_id) : '未匹配 API';
+        const ipTxt = w.proxy || '未绑定代理';
+        return `<div class="account-card">
+            <div class="account-info">
+                <div class="name"><span class="status-dot ${dot}"></span>${esc(w.phone)}
+                    <span class="badge ${st==='online'||st==='running'?'badge-green':st==='wait_code'?'badge-orange':st==='error'?'badge-red':'badge-gray'}">${esc(w.status_text || st)}</span>
+                </div>
+                <div class="detail">${esc(apiTxt)} · ${esc(ipTxt)}</div>
+                <div class="form-row" style="margin:8px 0 0;align-items:center;">
+                    <div class="form-group" style="margin:0;">
+                        <input id="remark-${w.id}" value="${esc(w.remark || '')}" placeholder="备注，改完点保存">
+                    </div>
+                    <button class="btn btn-ghost btn-sm" onclick="saveWorkerRemark('${w.id}')">保存备注</button>
+                </div>
+            </div>
+            <div class="account-actions">
+                <button class="btn btn-success btn-sm" onclick="startWorker('${w.id}')">启动</button>
+                <button class="btn btn-warning btn-sm" onclick="stopWorker('${w.id}')">停止</button>
+                <button class="btn btn-danger btn-sm" onclick="delWorker('${w.id}')">删除</button>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function renderApis() {
+    const list = STATE.apis || [];
+    if (!list.length) {
+        $('api-saved-list').innerHTML = '<p class="muted">暂无 API，请在上方批量添加。</p>';
+        return;
+    }
+    $('api-saved-list').innerHTML = `<table>
+        <thead><tr><th>API ID</th><th>API Hash</th><th>占用水军</th><th>状态</th><th>操作</th></tr></thead>
+        <tbody>${list.map(a => {
+            const used = a.worker_phone || '';
+            return `<tr>
+                <td>${esc(a.api_id)}</td>
+                <td class="muted">${esc((a.api_hash || '').slice(0,8))}…${esc((a.api_hash || '').slice(-4))}</td>
+                <td>${used ? esc(used) : '<span class="muted">空闲</span>'}</td>
+                <td>${used ? '<span class="badge badge-blue">已占用</span>' : '<span class="badge badge-green">空闲</span>'}</td>
+                <td><button class="btn btn-danger btn-sm" onclick="delApi('${a.id}')">删除</button></td>
+            </tr>`;
+        }).join('')}</tbody></table>`;
+}
+
+function renderIps() {
+    const list = STATE.ips || [];
+    const workers = STATE.workers || [];
+    if (!list.length) {
+        $('ip-saved-list').innerHTML = '<p class="muted">暂无已保存代理。</p>';
+        return;
+    }
+    $('ip-saved-list').innerHTML = list.map(ip => {
+        const bound = new Set(ip.worker_ids || []);
+        const chips = workers.map(w => {
+            const on = bound.has(w.id) ? 'on bound' : '';
+            return `<span class="acc-chip ${on}" data-ip="${ip.id}" data-wid="${w.id}" onclick="toggleChip(this)">${esc(w.phone)}${w.remark ? ' · '+esc(w.remark) : ''}</span>`;
+        }).join('') || '<span class="muted">还没有水军号</span>';
+        return `<div class="ip-card">
+            <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;">
+                <div>
+                    <div style="font-weight:600;">${esc(ip.display)}</div>
+                    <div class="muted">${esc(ip.type || 'socks5')} · 已绑 ${(ip.worker_ids || []).length} 个水军</div>
+                </div>
+                <button class="btn btn-danger btn-sm" onclick="delIp('${ip.id}')">删除</button>
+            </div>
+            <div style="margin-top:10px;">
+                <div class="muted" style="margin-bottom:4px;">独立勾选指定水军号后点绑定</div>
+                <div id="chips-${ip.id}">${chips}</div>
+                <div style="margin-top:8px;">
+                    <button class="btn btn-primary btn-sm" onclick="bindIp('${ip.id}')">绑定所选水军</button>
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function toggleChip(el) { el.classList.toggle('on'); }
+
+function selectedWorkerIds(ipId) {
+    return [...document.querySelectorAll(`#chips-${ipId} .acc-chip.on`)].map(x => x.dataset.wid);
+}
+
+function renderGroups() {
+    const list = STATE.groups || [];
+    const workers = STATE.workers || [];
+    if (!list.length) {
+        $('group-list').innerHTML = '<p class="muted">还没有转发组。</p>';
+        return;
+    }
+    $('group-list').innerHTML = list.map(g => {
+        const running = g.running;
+        const targets = g.targets || [];
+        const workerOpts = workers.map(w => `<option value="${w.id}" ${g.worker_id===w.id?'selected':''}>${esc(w.phone)}${w.remark?' · '+esc(w.remark):''}</option>`).join('');
+        return `<div class="fwd-card account-card" style="flex-direction:column;align-items:stretch;">
+            <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+                <div>
+                    <div class="name">源：${esc(g.source)}
+                        ${running ? '<span class="badge badge-green">运行中</span>' : '<span class="badge badge-gray">已停止</span>'}
+                    </div>
+                    <div class="detail">组 ID ${esc(g.id)} · 已转发 ${g.forwarded || 0} 条 · 目标 ${targets.length} 个</div>
+                </div>
+                <div class="account-actions">
+                    <button class="btn btn-success btn-sm" onclick="collectNow('${g.id}')">立即采集发布</button>
+                                        <button class="btn btn-success btn-sm" onclick="startGroup('${g.id}')">启动本组</button>
+                    <button class="btn btn-warning btn-sm" onclick="stopGroup('${g.id}')">停止</button>
+                    <button class="btn btn-danger btn-sm" onclick="delGroup('${g.id}')">删除组</button>
+                </div>
+            </div>
+            <div class="form-row" style="margin-top:12px;">
+                <div class="form-group">
+                    <label>源备注标注</label>
+                    <input id="gsr-${g.id}" value="${esc(g.source_remark || '')}" placeholder="源订阅备注">
+                </div>
+                <div class="form-group" style="flex:0 0 auto;">
+                    <label>&nbsp;</label>
+                    <button class="btn btn-ghost btn-sm" onclick="saveSourceRemark('${g.id}')">保存源备注</button>
+                </div>
+                <div class="form-group">
+                    <label>指定水军号（可选，空则自动选在线号）</label>
+                    <select id="gw-${g.id}"><option value="">自动匹配在线水军</option>${workerOpts}</select>
+                </div>
+                <div class="form-group" style="flex:0 0 auto;">
+                    <label>&nbsp;</label>
+                    <button class="btn btn-ghost btn-sm" onclick="saveGroupWorker('${g.id}')">保存指定水军</button>
+                </div>
+                <div class="form-group">
+                    <label>发布Bot</label>
+                    <select id="gbot-${g.id}" multiple size="3">
+                        <option value="">不用Bot</option>
+                        ${(STATE.bots||[]).map(b => `<option value="${b.id}" ${g.bot_id===b.id?'selected':''}>${esc(b.remark||'Bot')}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="form-group" style="flex:0 0 auto;">
+                    <label>&nbsp;</label>
+                    <button class="btn btn-ghost btn-sm" onclick="saveGroupBot('${g.id}')">保存发布Bot</button></div><div class="form-group" style="flex:0 0 auto;"><label>&nbsp;</label><button class="btn btn-success btn-sm" onclick="confirmGroupBots('${g.id}')">确认本组使用</button></div><div style="margin-top:8px;width:100%"><div class="muted">已确认使用的Bot</div><div id="savedbots-${g.id}">${((g.bot_ids&&g.bot_ids.length)?g.bot_ids:[g.bot_id]).filter(Boolean).map(id=>{ const b=(STATE.bots||[]).find(x=>x.id===id); return `<span class="badge badge-green" style="margin:4px 6px 0 0">${esc((b&&b.remark)||id)}</span>`; }).join("") || `<span class="muted">还没有确认</span>`}</div>
+                </div>
+            </div>
+            <div class="divider"></div>
+            <div class="section-title" style="font-size:14px;">目标订阅号（可自主添加多个，同属本组）</div>
+            ${targets.map(t => `<div class="target-row" style="flex-wrap:wrap;gap:8px;align-items:center;">
+                <div style="flex:1;min-width:160px;"><b>${esc(t.username)}</b> <span class="muted">${esc(t.remark || '')}</span></div>
+                <select id="tbot-${g.id}-${t.id}">
+                    <option value="">指定发送Bot</option>
+                    ${(STATE.bots||[]).map(b=>`<option value="${b.id}" ${t.bot_id===b.id?'selected':''}>${esc(b.remark||'Bot')}</option>`).join('')}
+                </select>
+                <button class="btn btn-success btn-sm" onclick="saveTargetBot('${g.id}','${t.id}')">确认专用Bot</button>
+                <button class="btn btn-danger btn-sm" onclick="delTarget('${g.id}','${t.id}')">删除</button>
+            </div>`).join('') || '<p class="muted">本组还没有目标订阅号</p>'}
+            <div class="form-row" style="margin-top:10px;">
+                <div class="form-group">
+                    <label>新增目标订阅号</label>
+                    <input id="gt-${g.id}" placeholder="@target_channel">
+                </div>
+                <div class="form-group">
+                    <label>目标备注</label>
+                    <input id="gtr-${g.id}" placeholder="可选">
+                </div>
+                <div class="form-group" style="flex:0 0 auto;">
+                    <label>&nbsp;</label>
+                    <button class="btn btn-primary btn-sm" onclick="addTarget('${g.id}')">添加目标</button>
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+async function createGroup() {
+    const source = $('src-input').value.trim();
+    const source_remark = $('src-remark').value.trim();
+    if (!source) return toast('请填写源订阅号');
+    const r = await api('/api/groups', 'POST', { source, source_remark });
+    if (r.status !== 'ok') return toast(r.message || '创建失败');
+    $('src-input').value = ''; $('src-remark').value = '';
+    toast('转发组已创建，可继续添加多个目标');
+    refreshAll();
+}
+async function saveSourceRemark(id) {
+    const r = await api(`/api/groups/${id}/source-remark`, 'POST', { source_remark: $('gsr-'+id).value.trim() });
+    toast(r.status === 'ok' ? '源备注已保存' : (r.message || '失败'));
+}
+
+async function confirmGroupBots(id){
+  const sel = $("gbot-"+id);
+  if(!sel) return toast("找不到选择框");
+  const picked = [...sel.options].filter(o=>o.selected && o.value).map(o=>o.value);
+  if(!picked.length) return toast("先点选Bot");
+  const g = (STATE.groups||[]).find(x=>x.id===id) || {};
+  const old = g.bot_ids || (g.bot_id ? [g.bot_id] : []);
+  const ids = Array.from(new Set(old.concat(picked)));
+  g.bot_ids = ids;
+  g.bot_id = ids[0]||"";
+  const r = await api("/api/groups/"+id+"/bot","POST",{bot_id:g.bot_id, bot_ids:ids});
+  toast(r.message || "已确认");
+  refreshAll();
+}
+
+async function confirmGroupBots_old(id){ const sel=$("gbot-"+id); const names=[...sel.options].filter(o=>o.selected&&o.value).map(o=>o.text); toast(names.length?("已确认使用: "+names.join("、")):"未选Bot"); }
+async function saveGroupBot(id){
+  const r = await api("/api/groups/"+id+"/bot","POST",{bot_id: $("gbot-"+id).value});
+  toast(r.message || "已保存发布Bot");
+}
+async function saveGroupWorker(id) {
+    const r = await api(`/api/groups/${id}/worker`, 'POST', { worker_id: $('gw-'+id).value });
+    toast(r.status === 'ok' ? '已指定水军' : (r.message || '失败'));
+}
+async function saveTargetBot(gid,tid){
+  const botId=$("tbot-"+gid+"-"+tid).value;
+  const r=await api("/api/groups/"+gid+"/target-bot","POST",{target_id:tid,bot_id:botId});
+  toast(r.message||"已指定");
+  refreshAll();
+}
+async function addTarget(id) {
+    const username = $('gt-'+id).value.trim();
+    const remark = $('gtr-'+id).value.trim();
+    if (!username) return toast('请填写目标订阅号');
+    const r = await api(`/api/groups/${id}/targets`, 'POST', { username, remark });
+    if (r.status !== 'ok') return toast(r.message || '失败');
+    toast('目标已加入本组');
+    refreshAll();
+}
+async function delTarget(gid, tid) {
+    if (!confirm('删除该目标订阅号？')) return;
+    await api(`/api/groups/${gid}/targets/${tid}`, 'DELETE');
+    refreshAll();
+}
+async function startGroup(id) {
+    const r = await api(`/api/groups/${id}/start`, 'POST');
+    toast(r.message || (r.status === 'ok' ? '本组已启动' : '启动失败'));
+    refreshAll();
+}
+async function stopGroup(id) {
+    const r = await api(`/api/groups/${id}/stop`, 'POST');
+    toast(r.message || '已停止');
+    refreshAll();
+}
+async function delGroup(id) {
+    if (!confirm('删除整个转发组？')) return;
+    await api(`/api/groups/${id}`, 'DELETE');
+    refreshAll();
+}
+
+async function addWorker() {
+    const phone = $('w-phone').value.trim();
+    if (!phone) return toast('请填写手机号');
+    const r = await api('/api/workers', 'POST', {
+        phone,
+        twofa: $('w-2fa').value,
+        remark: $('w-remark').value.trim()
+    });
+    if (r.status !== 'ok') return toast(r.message || '添加失败');
+    $('w-phone').value = ''; $('w-2fa').value = ''; $('w-remark').value = '';
+    toast('水军已添加');
+    refreshAll();
+}
+async function saveWorkerRemark(id) {
+    const r = await api(`/api/workers/${id}/remark`, 'POST', { remark: $('remark-'+id).value.trim() });
+    toast(r.status === 'ok' ? '备注已保存' : (r.message || '失败'));
+}
+async function startWorker(id) {
+    const r = await api(`/api/workers/${id}/start`, 'POST');
+    if (r.need_code) {
+        VERIFY_ID = id;
+        $('verify-hint').textContent = r.message || '验证码已发送，请填写后确认。登录将自动匹配空闲 API。';
+        $('verify-code').value = '';
+        $('verify-modal').classList.add('active');
+        return;
+    }
+    toast(r.message || (r.status === 'ok' ? '已启动' : '启动失败'));
+    refreshAll();
+}
+async function submitVerify() {
+    if (!VERIFY_ID) return;
+    const r = await api(`/api/workers/${VERIFY_ID}/verify`, 'POST', {
+        code: $('verify-code').value.trim(),
+        password: $('verify-password').value
+    });
+    toast(r.message || (r.status === 'ok' ? '登录成功' : '验证失败'));
+    if (r.status === 'ok') closeModal();
+    refreshAll();
+}
+function closeModal() { $('verify-modal').classList.remove('active'); VERIFY_ID = null; }
+async function stopWorker(id) {
+    const r = await api(`/api/workers/${id}/stop`, 'POST');
+    toast(r.message || '已停止');
+    refreshAll();
+}
+async function delWorker(id) {
+    if (!confirm('删除该水军号？session 也会清除')) return;
+    await api(`/api/workers/${id}`, 'DELETE');
+    refreshAll();
+}
+
+async function addIps() {
+    const text = $('ip-new-text').value.trim();
+    if (!text) return toast('请填写要新增的代理');
+    const r = await api('/api/pools/ip', 'POST', { text });
+    toast(r.message || `已新增 ${r.added || 0} 条`);
+    if (r.status === 'ok') $('ip-new-text').value = '';
+    refreshAll();
+}
+async function bindIp(id) {
+    const worker_ids = selectedWorkerIds(id);
+    const r = await api(`/api/pools/ip/${id}/bind`, 'POST', { worker_ids });
+    toast(r.message || '已绑定');
+    refreshAll();
+}
+async function delIp(id) {
+    if (!confirm('删除该代理？')) return;
+    await api(`/api/pools/ip/${id}`, 'DELETE');
+    refreshAll();
+}
+
+async function addApis() {
+    const text = $('api-new-text').value.trim();
+    if (!text) return toast('请填写 API');
+    const r = await api('/api/pools/api', 'POST', { text });
+    toast(r.message || `已新增 ${r.added || 0} 条`);
+    if (r.status === 'ok') $('api-new-text').value = '';
+    refreshAll();
+}
+async function delApi(id) {
+    if (!confirm('删除该 API？')) return;
+    const r = await api(`/api/pools/api/${id}`, 'DELETE');
+    toast(r.message || '已删除');
+    refreshAll();
+}
+
+async function loadLogs() {
+    const r = await api('/api/logs');
+    const logs = r.logs || [];
+    if (!logs.length) { $('log-box').innerHTML = '暂无日志'; return; }
+    $('log-box').innerHTML = logs.map(l => {
+        const cls = l.level === 'error' ? 'log-error' : (l.level === 'warn' ? 'log-warn' : 'log-info');
+        return `<div><span class="log-time">${esc(l.time)}</span> <span class="${cls}">${esc(l.msg)}</span></div>`;
+    }).join('');
+    $('log-box').scrollTop = $('log-box').scrollHeight;
+}
+
+async function doLogout() {
+    await api('/api/logout', 'POST');
+    location.href = '/login.html';
+}
+
+(async function boot() {
+    try {
+        const st = await api('/api/auth/status');
+        if (!st.logged_in) { location.href = '/login.html'; return; }
+    } catch (e) { location.href = '/login.html'; return; }
+    await refreshAll();
+    setInterval(refreshAll, 5000);
+})();
+
+async function collectNow(id){
+  toast("正在采集源并交给Bot发布");
+  const r = await api("/api/groups/"+id+"/collect-now","POST");
+  toast(r.message || (r.status==="ok" ? "完成" : "失败"));
+}
+
+setTimeout(async function(){
+  try{
+    const r = await fetch("/api/botlist").then(x=>x.json());
+    STATE.bots = r.bots || [];
+    if (typeof renderBots === "function") renderBots();
+  }catch(e){}
+}, 500);
+</script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

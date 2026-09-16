@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+data/bots.json
+data/workers.json
+data/groups.json
+data/ip_pool.json
+data/api_pool.json
+sessions/
+*.session
+*.session-journal
+/tmp/
