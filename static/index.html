@@ -1,0 +1,1227 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TG 订阅转发 Pro</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            background: #f0f2f5;
+            min-height: 100vh;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header h1 { font-size: 22px; }
+        .header .monitor-badge {
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: bold;
+        }
+        .monitor-badge.active { background: #4caf50; }
+        .monitor-badge.inactive { background: rgba(255,255,255,0.2); }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 18px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        .stat-card .number { font-size: 28px; font-weight: bold; }
+        .stat-card .label { font-size: 12px; color: #888; margin-top: 4px; }
+        .stat-card .number.blue { color: #2196f3; }
+        .stat-card .number.green { color: #4caf50; }
+        .stat-card .number.orange { color: #ff9800; }
+        .stat-card .number.red { color: #f44336; }
+        .stat-card .number.purple { color: #9c27b0; }
+        .tabs {
+            display: flex;
+            background: white;
+            border-radius: 12px 12px 0 0;
+            overflow-x: auto;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        .tab {
+            padding: 14px 24px;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            font-size: 14px;
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+        .tab:hover { background: #f5f5f5; }
+        .tab.active { border-bottom-color: #667eea; color: #667eea; font-weight: bold; }
+        .tab-content {
+            background: white;
+            border-radius: 0 0 12px 12px;
+            padding: 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            margin-bottom: 20px;
+            display: none;
+        }
+        .tab-content.active { display: block; }
+        .form-row { display: flex; gap: 12px; margin-bottom: 15px; flex-wrap: wrap; align-items: flex-end; }
+        .form-group { flex: 1; min-width: 180px; }
+        .form-group label { display: block; font-size: 13px; color: #666; margin-bottom: 5px; }
+        input, textarea, select {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        input:focus, textarea:focus, select:focus { border-color: #667eea; outline: none; }
+        textarea { resize: vertical; min-height: 90px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+        }
+        .btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        .btn-primary { background: #667eea; color: white; }
+        .btn-success { background: #4caf50; color: white; }
+        .btn-danger { background: #f44336; color: white; }
+        .btn-warning { background: #ff9800; color: white; }
+        .btn-info { background: #2196f3; color: white; }
+        .btn-ghost { background: #f3f4f6; color: #333; }
+        .btn-sm { padding: 6px 12px; font-size: 12px; }
+        .account-card {
+            border: 1px solid #eee;
+            border-radius: 10px;
+            padding: 16px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 12px;
+        }
+        .account-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+        .account-info { flex: 1; min-width: 0; }
+        .account-info .name { font-weight: bold; font-size: 15px; }
+        .account-info .detail { font-size: 12px; color: #888; margin-top: 4px; word-break: break-all; }
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+        .status-dot.online { background: #4caf50; }
+        .status-dot.offline { background: #ccc; }
+        .status-dot.error { background: #f44336; }
+        .status-dot.running { background: #2196f3; }
+        .account-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+        .section-title { font-size: 16px; font-weight: bold; margin-bottom: 15px; color: #333; }
+        .hint { color: #666; font-size: 13px; margin-bottom: 12px; line-height: 1.6; }
+        .divider { height: 1px; background: #eee; margin: 20px 0; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
+        th { background: #f8f9fa; font-weight: 600; color: #333; }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal.active { display: flex; }
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            width: 90%;
+            max-width: 480px;
+        }
+        .modal-content h3 { margin-bottom: 16px; }
+        .log-box {
+            background: #1a1a2e;
+            color: #0f0;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 360px;
+            overflow-y: auto;
+            margin-top: 15px;
+        }
+        .log-box .log-time { color: #888; }
+        .log-box .log-info { color: #4caf50; }
+        .log-box .log-error { color: #f44336; }
+        .log-box .log-warn { color: #ff9800; }
+        .acc-chip {
+            display: inline-block; margin: 3px 4px 0 0; padding: 4px 10px;
+            border-radius: 14px; border: 1px solid #cbd5e1; background: #f8fafc;
+            cursor: pointer; font-size: 12px; user-select: none;
+        }
+        .acc-chip.on { outline: 2px solid #2563eb; background: #dbeafe; font-weight: 600; }
+        .acc-chip.bound { outline: 2px solid #22c55e; background: #dcfce7; }
+        .ip-card, .api-card, .fwd-card {
+            border: 1px solid #eee;
+            border-radius: 10px;
+            padding: 14px;
+            margin-bottom: 10px;
+            background: #fafafa;
+        }
+        .fwd-card { background: #fff; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; }
+        .badge-green { background: #dcfce7; color: #166534; }
+        .badge-gray { background: #f3f4f6; color: #6b7280; }
+        .badge-blue { background: #dbeafe; color: #1e40af; }
+        .badge-red { background: #fee2e2; color: #991b1b; }
+        .badge-orange { background: #ffedd5; color: #9a3412; }
+        .muted { color: #888; font-size: 12px; }
+        .target-row { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
+        .toast {
+            position: fixed; right: 20px; bottom: 20px; background: #333; color: #fff;
+            padding: 10px 16px; border-radius: 8px; display: none; z-index: 2000; font-size: 13px;
+        }
+    
+select[multiple] option { color:#6b7280; background:#f3f4f6; }
+select[multiple] option:checked {
+  background:#22c55e !important;
+  color:#333 !important;
+}
+</style>
+<style id="dark-skin">
+html,body{background:#000!important;color:#fff!important}
+div,section,main,header,nav,form,label,p,span,h1,h2,h3,li,td,th,.wrap,.content{
+  background:#000!important;color:#fff!important}
+.stat,.card{background:#000!important;color:#fff!important;border:1px solid #fff!important;border-radius:12px!important}
+input,textarea,select,option{background:#111!important;color:#fff!important;border:1px solid #333!important}
+button,.btn{background:#38bdf8!important;color:#fff!important;border:0!important}
+.btn-success{background:#22c55e!important;color:#fff!important}
+.btn-danger{background:#ef4444!important;color:#fff!important}
+</style><style id="white-lines">
+.card,.group-card,.panel,section{border:1px solid #333 !important}
+.tabs button,.nav button,button.btn{border:1px solid #333 !important}
+</style><style id="white-lines-2">
+button, .card, .stat, .kpi, .tile, .group-card, section, div[style*="border"]{
+  border-color:#333 !important;
+  box-shadow:none !important;
+}
+</style><style id="api-grid">
+table{border-collapse:separate !important}
+table thead{display:none}
+table, table tbody{display:flex;flex-wrap:wrap;gap:12px}
+table tr{display:flex;flex-direction:column;width:240px;border:1px solid #333 !important;border-radius:8px;padding:10px;margin:0}
+table td{border:none !important;padding:4px 0}
+table td:last-child{margin-top:8px}
+</style></head>
+<body>
+    <div class="header">
+        <h1>TG 订阅转发 Pro</h1>
+        <div style="display:flex;align-items:center;gap:12px;">
+            <span id="engine-badge" class="monitor-badge inactive">引擎已启动</span>
+            <button onclick="doLogout()" style="padding:5px 12px;border-radius:15px;border:1px solid rgba(255,255,255,0.5);background:transparent;color:white;cursor:pointer;font-size:12px;">退出</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="stats-row">
+            <div class="stat-card"><div class="number blue" id="stat-groups">0</div><div class="label">转发组</div></div>
+            <div class="stat-card"><div class="number green" id="stat-running">0</div><div class="label">运行中组</div></div>
+            <div class="stat-card"><div class="number orange" id="stat-workers">0</div><div class="label">水军号</div></div>
+            <div class="stat-card"><div class="number purple" id="stat-online">0</div><div class="label">在线水军</div></div>
+            <div class="stat-card"><div class="number" id="stat-ip" style="color:#0ea5e9;">0</div><div class="label">IP池</div></div>
+            <div class="stat-card"><div class="number" id="stat-api" style="color:#8b5cf6;">0</div><div class="label">API池</div></div>
+            <div class="stat-card"><div class="number red" id="stat-fwd">0</div><div class="label">已转发</div></div>
+        </div>
+
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('forward')">订阅转发</div>
+            <div class="tab" onclick="switchTab('workers')">水军账号</div>
+            <div class="tab" onclick="switchTab('bots')">发布机器人</div>
+            <div class="tab" onclick="switchTab('targets')">目标订阅号管理</div>
+            <div class="tab" onclick="switchTab('ip')">IP池</div>
+            <div class="tab" onclick="switchTab('api')">API池</div>
+            <div class="tab" onclick="switchTab('logs')">运行日志</div>
+            
+        </div>
+
+        <!-- 订阅转发：1源 + 多目标 = 一组 -->
+        <div class="tab-content active" id="tab-forward" >
+            <div class="section-title">新建转发组（1 个源订阅 → 多个目标订阅）</div>
+            <p class="hint">一组 = 1 个源订阅号 + 可自主添加的多个目标订阅号。源新增后立刻可保存备注标注。水军启动后自动匹配空闲 API，按绑定 IP 登录，监听源频道新消息并转发到本组全部目标。</p>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>源订阅号（@username / t.me/xxx / -100id）</label>
+                    <input id="src-input" placeholder="@source_channel">
+                </div>
+                <div class="form-group">
+                    <label>源备注标注</label>
+                    <input id="src-remark" placeholder="例如：印尼日化货源频道">
+                </div>
+                <div class="form-group" style="flex:0 0 auto;">
+                    <label>&nbsp;</label>
+                    <button class="btn btn-primary" onclick="createGroup()">新增转发组</button>
+                </div>
+            </div>
+            <div id="group-list"></div>
+            <div class="section-title" style="margin-top:18px">水军号组列</div>
+            <div style="display:flex;gap:16px;align-items:flex-start">
+                <div id="worker-cols" style="width:300px;max-height:640px;overflow:auto;background:#0f172a;color:#e5e7eb;border-radius:12px;padding:8px"></div>
+                <div id="worker-col-detail" style="flex:1"></div>
+            </div>
+        </div>
+
+        
+        <div class="tab-content" id="tab-bots">
+            <div class="section-title">固定发布 Bot</div>
+            <p class="hint">填写 Bot Token 和备注后添加。把 Bot 拉进目标频道并设管理员。源监听仍用水军，发布走 Bot，图+视频+文案一次发出。</p>
+            <div class="form-row">
+                <div class="form-group"><label>Bot Token</label><input id="bot-token" placeholder="123456:AAHxxxx"></div>
+                <div class="form-group"><label>固定备注</label><input id="bot-remark" placeholder="例如：快约发布Bot"></div>
+                <div class="form-group" style="flex:0 0 auto;"><label>&nbsp;</label><button class="btn btn-primary" onclick="addBot()">添加Bot</button></div>
+            </div>
+            <div id="bot-list"></div>
+        </div>
+        <!-- 水军 -->
+        <div class="tab-content" id="tab-workers">
+            <div class="section-title">水军账号管理与验证配置</div>
+<div class="card" id="worker-groups-box" style="margin-top:16px">
+  <b>水军组</b> 一组 1 个在岗水军号、最多 10 个目标订阅号
+  <div style="margin-top:8px"><button class="btn btn-primary btn-sm" onclick="hubAdd()">新建水军组</button></div>
+  <div id="hub-side" style="margin-top:8px"></div>
+  <div id="hub-main" style="margin-top:8px"></div>
+</div>
+<script>
+let HUB={groups:[]}, HCUR=null;
+async function hubLoad(){
+  try{ HUB=await fetch('/api/hub').then(r=>r.json()); }catch(e){ HUB={groups:[],workers:[],bots:[]}; }
+  if(!HCUR && HUB.groups && HUB.groups[0]) HCUR=HUB.groups[0].id;
+  hubRender();
+}
+function hubRender(){
+  const side=document.getElementById('hub-side'), main=document.getElementById('hub-main');
+  if(!side||!main) return;
+  const g=(HUB.groups||[]).find(x=>x.id===HCUR);
+  side.innerHTML=(HUB.groups||[]).map(x=>'<button class="btn btn-sm" style="margin:4px" onclick="HCUR=\''+x.id+'\';hubRender()">'+x.name+' 水军'+(x.worker_ids||[]).length+'/10 目标'+(x.target_usernames||[]).length+'/10</button>').join('')||'<span class="muted">还没有组</span>';
+  if(!g){ main.innerHTML='<p class="muted">先新建一组，再从本页水军号加入</p>'; return; }
+  const w=(HUB.workers||[]).map(x=>'<option value="'+x.id+'">'+(x.phone||x.remark||x.id)+'</option>').join('');
+  const b=(HUB.bots||[]).map(x=>'<option value="'+x.id+'">'+(x.remark||x.id)+'</option>').join('');
+  main.innerHTML='<div class="form-row"><select id="hub-wid">'+w+'</select><button class="btn btn-primary btn-sm" onclick="hubBindW()">加入这组</button></div>'
+    +'<div>'+(g.worker_ids||[]).map(id=>'<span class="badge" style="margin:4px">'+( (HUB.workers||[]).find(w=>w.id===id)||{}).phone||id )+'</span>').join('')+'</div>'
+    +'<div class="form-row" style="margin-top:8px"><input id="hub-tu" placeholder="@目标订阅号"><button class="btn btn-primary btn-sm" onclick="hubBindT()">加入目标</button></div>'
+    +'<div>'+(g.target_usernames||[]).map(u=>'<span class="badge" style="margin:4px">'+u+'</span>').join('')+'</div>'
+    +'<div class="form-row" style="margin-top:8px"><select id="hub-bid">'+b+'</select><button class="btn btn-primary btn-sm" onclick="hubBindB()">导入Bot</button></div>';
+}
+async function hubAdd(){ await fetch('/api/hub/groups',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:prompt('组名','水军组')||'水军组'})}); hubLoad(); }
+async function hubBindW(){ await fetch('/api/hub/groups/'+HCUR+'/worker',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({worker_id:document.getElementById('hub-wid').value})}); hubLoad(); }
+async function hubBindT(){ await fetch('/api/hub/groups/'+HCUR+'/target',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:document.getElementById('hub-tu').value})}); hubLoad(); }
+async function hubBindB(){ await fetch('/api/hub/groups/'+HCUR+'/bot',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({bot_id:document.getElementById('hub-bid').value})}); hubLoad(); }
+setTimeout(hubLoad, 600);
+</script>
+
+            <p class="hint"><div class="card" style="padding:14px;margin:12px 0;background:#0f172a;color:#e5e7eb">
+  <b>上传 ZIP 批量导入（.session + .json）</b>
+  <div style="opacity:.75;margin:6px 0">死号不导入，活号自动分配到未满水军组。</div>
+  <input id="worker-zip" type="file" accept=".zip">
+  <button class="btn btn-primary" style="margin-left:8px" onclick="importWorkerZip()">上传并导入</button>
+</div>添加手机号后点「启动」发送验证码。登录时自动匹配 1 个空闲 API（1 水军 = 1 API）。每个号可单独删除 / 启动，备注可即时保存。</p>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>手机号（含国家码）</label>
+                    <input id="w-phone" placeholder="+62812xxxxxxxx">
+                </div>
+                <div class="form-group">
+                    <label>两步验证密码（选填）</label>
+                    <input id="w-2fa" type="password" placeholder="如开启 2FA 请填写">
+                </div>
+                <div class="form-group">
+                    <label>备注</label>
+                    <input id="w-remark" placeholder="例如：转发主号1">
+                </div>
+                <div class="form-group" style="flex:0 0 auto;">
+                    <label>&nbsp;</label>
+                    <button class="btn btn-primary" onclick="addWorker()">添加水军号</button>
+                </div>
+            </div>
+            <div id="worker-list"></div>
+        </div>
+
+        <!-- IP 池：上框只填新增 + 保存，下方已保存列表，每条多选绑定水军 -->
+        
+        <div class="tab-content" id="tab-targets">
+            <div class="section-title">目标订阅号管理</div>
+            <p class="muted">只填名称和链接。保存后自动进入第一个还没满 10 个的水军组。</p>
+            <div class="form-row">
+                <input id="nt-name" placeholder="订阅号名称">
+                <input id="nt-link" placeholder="@订阅号 或 t.me 链接">
+                <div style="flex:1">
+  <input id="nt-bot" type="hidden">
+  <div id="nt-bot-pick" style="display:flex;gap:8px;background:#0f172a;color:#e5e7eb;border-radius:10px;padding:8px;min-height:180px"></div>
+</div>
+                <button class="btn btn-primary" onclick="addAutoTarget()">保存并自动进组</button>
+            </div>
+            <p id="nt-msg" class="muted"></p>
+        </div>
+<div class="tab-content" id="tab-ip">
+            <div class="section-title">IP 代理池</div>
+            <p class="hint">上框只填新增代理，点保存追加到下方列表（不覆盖已有）。每条可独立勾选指定水军号并绑定。支持 socks5 / http。<br>格式每行一条：<code>socks5://user:pass@host:port</code> 或 <code>host:port</code></p>
+            <textarea id="ip-new-text" rows="5" placeholder="socks5://user:pass@1.2.3.4:1080&#10;http://1.2.3.4:8080&#10;1.2.3.4:1080"></textarea>
+            <div style="margin-top:10px;display:flex;gap:8px;">
+                <button class="btn btn-primary" onclick="addIps()">保存新增代理</button>
+            </div>
+            <div class="divider"></div>
+            <div class="section-title">已保存代理列表</div>
+            <div id="ip-saved-list"></div>
+        </div>
+
+        <!-- API 池：一键批量添加，每条单独删除，1水军1API -->
+        <div class="tab-content" id="tab-api">
+            <div class="section-title">API 池</div>
+            <p class="hint">一键批量添加。每条 API 带独立删除键。调度规则：水军登录时自动匹配 1 个空闲 API（1 个水军自动配置 1 个 API，已占用的不再分配）。<br>格式每行：<code>api_id,api_hash</code> ，从 my.telegram.org 申请。</p>
+            <textarea id="api-new-text" rows="6" placeholder="12345678,0123456789abcdef0123456789abcdef"></textarea>
+            <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+                <button class="btn btn-primary" onclick="addApis()">一键批量添加</button>
+            </div>
+            <div class="divider"></div>
+            <div class="section-title">已保存 API 列表</div>
+            <div id="api-saved-list"></div>
+        </div>
+
+        <!-- 日志 -->
+        <div class="tab-content" id="tab-logs">
+            <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;">
+                <span>运行日志</span>
+                <button class="btn btn-ghost btn-sm" onclick="loadLogs()">刷新</button>
+            </div>
+            <div class="log-box" id="log-box">暂无日志</div>
+        </div>
+    </div>
+
+    <div class="modal" id="verify-modal">
+        <div class="modal-content">
+            <h3>水军登入验证</h3>
+            <p class="hint" id="verify-hint">验证码已发到 Telegram，请填写。</p>
+            <div class="form-group" style="margin-bottom:12px;">
+                <label>验证码</label>
+                <input id="verify-code" placeholder="短信 / App 验证码">
+            </div>
+            <div class="form-group" style="margin-bottom:20px;">
+                <label>两步验证密码（如有）</label>
+                <input id="verify-password" type="password" placeholder="未开启可留空">
+            </div>
+            <div style="display:flex;gap:8px;">
+                <button class="btn btn-primary" onclick="submitVerify()">确认</button>
+                <button class="btn btn-ghost" onclick="closeModal()">取消</button>
+            </div>
+        </div>
+    </div>
+    <div class="toast" id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let STATE = { workers: [], apis: [], ips: [], groups: [], stats: {}, logs: [] };
+let VERIFY_ID = null;
+
+
+let SLOT_CUR = 0;
+async function loadSlotPage(){
+  const box = document.getElementById("slot-list");
+  if (!box) return;
+  const r = await api("/api/slots");
+  const slots = r.slots || [];
+  box.innerHTML = slots.map((s,i)=>'<div class="card" style="padding:8px;margin:6px 0;cursor:pointer" onclick="SLOT_CUR='+i+';loadSlotPage()"><b>组'+(i+1)+'</b> '+(s.phone||"未绑定")+' · '+(s.targets||[]).length+'/10</div>').join("");
+  const s = slots[SLOT_CUR] || {targets:[]};
+  document.getElementById("slot-detail").innerHTML = "<b>组"+(SLOT_CUR+1)+"</b><div>"+(s.targets||[]).map(u=>"<div>"+u+"</div>").join("") || "还没有目标"+"</div>";
+}
+async function addSlotTarget(){
+  const u = document.getElementById("slot-u").value.trim();
+  const r = await api("/api/slots/autobind","POST",{username:u});
+  document.getElementById("slot-msg").textContent = r.message || r.status;
+  if (r.slot != null) SLOT_CUR = r.slot;
+  document.getElementById("slot-u").value = "";
+  loadSlotPage();
+}
+
+
+function renderTargetPage(){
+  const box = document.getElementById("target-page");
+  if (!box) return;
+  const groups = STATE.groups || [];
+  box.innerHTML = groups.map(g => {
+    const targets = g.targets || [];
+    return `<div class="card" style="padding:14px;margin-bottom:12px">
+      <b>源频道工作 · ${esc(g.source_remark || g.source)}</b>
+      <div style="margin-top:10px">${targets.map(t => `<div class="target-row" style="flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px">
+        <div style="flex:1;min-width:160px"><b>${esc(t.username)}</b> <span class="muted">${esc(t.remark || "")}</span></div>
+        <select id="tbot-${g.id}-${t.id}">
+          <option value="">指定发送Bot</option>
+          ${(STATE.bots||[]).map(b=>`<option value="${b.id}" ${t.bot_id===b.id?"selected":""}>${esc(b.remark||b.id)}</option>`).join("")}
+        </select>
+        <button class="btn btn-success btn-sm" onclick="saveTargetBot('${g.id}','${t.id}')">确认专用Bot</button>
+        <button class="btn btn-danger btn-sm" onclick="delTarget('${g.id}','${t.id}')">删除</button>
+      </div>`).join("") || '<p class="muted">还没有目标订阅号</p>'}</div>
+      <div class="form-row" style="margin-top:10px">
+        <input id="gt-${g.id}" placeholder="@target_channel">
+        <input id="gtr-${g.id}" placeholder="目标备注">
+        <button class="btn btn-primary btn-sm" onclick="addTarget('${g.id}')">添加目标</button>
+      </div>
+    </div>`;
+  }).join("") || '<p class="muted">还没有转发组</p>';
+}
+
+
+let COL_CUR = 0;
+async function renderWorkerCols(){
+  const box = document.getElementById("worker-cols");
+  const detail = document.getElementById("worker-col-detail");
+  if (!box || !detail) return;
+  const slots = (await api("/api/slots")).slots || [];
+  const workers = STATE.workers || [];
+  box.innerHTML = slots.map(s => {
+    const phone = (workers.find(w=>w.id===s.worker_id)||{}).phone || "未绑水军</div><select id="wgw-${g.id}" style="margin-top:6px">${(STATE.workers||[]).map(w=>'<option value="'+w.id+'">'+w.phone+'</option>').join('')}</select><button class="btn btn-primary btn-sm" onclick="bindWgWorker('${g.id}')">绑定水军</button><div style="display:none">";
+    const on = s.i===COL_CUR;
+    return `<div onclick="COL_CUR=${s.i};renderWorkerCols()" style="padding:10px;margin-bottom:8px;border-radius:8px;cursor:pointer;background:${on?"#1d4ed8":"#111827"}">
+      <b>${s.i+1}组</b> <span style="opacity:.8">${(s.targets||[]).length}/10</span>
+      <div style="font-size:12px;opacity:.75;margin:4px 0">${esc(phone)}</div>
+      <div onclick="event.stopPropagation()" style="display:flex;gap:6px">
+        <input id="colname-${s.i}" value="${esc(s.remark||"")}" placeholder="组名称" style="flex:1;background:#0b1220;color:#fff;border:1px solid #334155;border-radius:6px;padding:6px">
+        <button class="btn btn-primary btn-sm" onclick="saveColRemark(${s.i})">保存</button>
+      </div>
+    </div>`;
+  }).join("");
+  const s = slots[COL_CUR] || {targets:[], i:COL_CUR, remark:""};
+  renderBotPick();
+  const phone = (workers.find(w=>w.id===s.worker_id)||{}).phone || "未绑水军";
+  detail.innerHTML = `<div class="card" style="padding:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <b>${esc(s.remark || ("组"+(s.i+1)))} · ${esc(phone)}</b>
+      <span class="muted">${(s.targets||[]).length}/10</span>
+    </div>
+    <div style="margin-top:10px">${(s.targets||[]).map((t,n)=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #eee">
+      <div><b>${esc(typeof t==="string"?t:(t.username||""))}</b><div class="muted">${esc(typeof t==="string"?"":(t.remark||""))} ${esc((STATE.bots||[]).find(b=>b.id===t.bot_id)?.remark || "")}</div></div>
+      <button class="btn btn-danger btn-sm" onclick="delColTarget(${s.i},${n})">删除</button>
+    </div>`).join("") || "<span class=\"muted\">这组还没有订阅号</span>"}</div>
+  </div>`;
+}
+async function saveColRemark(i){
+  await api("/api/slots/"+i+"/remark","POST",{remark: document.getElementById("colname-"+i).value.trim()});
+  toast("已保存组名");
+  renderWorkerCols();
+}
+async function delColTarget(i,n){
+  await api("/api/slots/"+i+"/targets/"+n,"DELETE");
+  renderWorkerCols();
+}
+async function saveColWorker(i){
+  await api("/api/slots/"+i+"/worker","POST",{worker_id: document.getElementById("colw-"+i).value});
+  toast("已保存组"+(i+1));
+  renderWorkerCols();
+}
+
+let NT_BOT_CUR = 0;
+function renderBotPick(){
+  const box = document.getElementById("nt-bot-pick");
+  if (!box) return;
+  const bots = STATE.bots || [];
+  const slots = Array.from({length:10}, (_,i)=>bots.filter(b=>(b.slot||0)===i));
+  const cur = document.getElementById("nt-bot") ? document.getElementById("nt-bot").value : "";
+  box.innerHTML = `<div style="width:92px">${slots.map((items,i)=>`<div onclick="NT_BOT_CUR=${i};renderBotPick()" style="padding:6px 8px;margin-bottom:4px;border-radius:6px;cursor:pointer;background:${i===NT_BOT_CUR?"#1d4ed8":"#111827"}">${i+1}组 ${items.length}</div>`).join("")}</div>
+    <div style="flex:1;max-height:220px;overflow:auto">${(slots[NT_BOT_CUR]||[]).map(b=>`<div onclick="document.getElementById('nt-bot').value='${b.id}';renderBotPick()" style="padding:6px 8px;margin-bottom:4px;border-radius:6px;cursor:pointer;background:${cur===b.id?"#166534":"#1f2937"}">${esc(b.remark||b.id)}</div>`).join("") || '<span style="opacity:.7">这组没有机器人</span>'}</div>`;
+}
+
+async function addAutoTarget(){
+  const name = document.getElementById("nt-name").value.trim();
+  const link = document.getElementById("nt-link").value.trim();
+  const bot_id = document.getElementById("nt-bot").value;
+  if (!link) return toast("请填写订阅号链接");
+  if (!bot_id) return toast("请选择指定发布机器人");
+  const r = await api("/api/slots/autobind","POST",{username: link, remark: name, bot_id});
+  document.getElementById("nt-msg").textContent = (r.message || r.status) + (name ? " · "+name : "");
+  document.getElementById("nt-name").value = "";
+  document.getElementById("nt-link").value = "";
+  document.getElementById("nt-bot").value = ""; renderBotPick();
+  if (r.slot != null) COL_CUR = r.slot;
+}
+
+function switchTab(name) {
+    document.querySelectorAll('.tab').forEach((t, i) => {
+        t.classList.toggle('active', t.getAttribute('onclick').includes("'" + name + "'"));
+    });
+    document.querySelectorAll('.tab-content').forEach(p => p.classList.remove('active'));
+    $('tab-' + name).classList.add('active');
+    if (name === 'logs') loadLogs();
+    if (name === 'targets') {}
+}
+
+function toast(msg) {
+    const el = $('toast');
+    el.textContent = msg;
+    el.style.display = 'block';
+    setTimeout(() => el.style.display = 'none', 2200);
+}
+
+async function api(path, method='GET', body=null) {
+    const opt = { method, headers: { 'Content-Type': 'application/json' } };
+    if (body !== null) opt.body = JSON.stringify(body);
+    const res = await fetch(path, opt);
+    if (res.status === 401) { location.href = '/login.html'; throw new Error('未登录'); }
+    return res.json();
+}
+
+async function fillBotsThenRender(){
+  try{
+    const r = await fetch("/api/botlist").then(x=>x.json());
+    STATE.bots = r.bots || [];
+  }catch(e){}
+}
+async function keepBots(){}
+async function refreshAll() {
+    const ae=document.activeElement;
+    if(ae && /INPUT|TEXTAREA|SELECT/.test(ae.tagName) && ae.closest("#tab-forward")) return;
+
+    try {
+        const data = await api('/api/overview');
+        STATE = Object.assign(STATE, data);
+        renderStats();
+        renderWorkers();
+        loadBots();
+        renderApis();
+        renderIps();
+        renderGroups();
+        renderTargetPage();
+        renderWorkerCols();
+    } catch (e) { console.error(e); }
+}
+
+function renderStats() {
+    const s = STATE.stats || {};
+    $('stat-groups').textContent = s.groups || 0;
+    $('stat-running').textContent = s.running_groups || 0;
+    $('stat-workers').textContent = s.workers || 0;
+    $('stat-online').textContent = s.online_workers || 0;
+    $('stat-ip').textContent = s.ips || 0;
+    $('stat-api').textContent = s.apis || 0;
+    $('stat-fwd').textContent = s.forwarded || 0;
+    const badge = $('engine-badge');
+    if ((s.running_groups || 0) > 0) {
+        badge.textContent = '转发运行中';
+        badge.className = 'monitor-badge active';
+    } else {
+        badge.textContent = '引擎待命';
+        badge.className = 'monitor-badge inactive';
+    }
+}
+
+function esc(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+
+async function loadBots(){ renderBots(); }
+let BOT_CUR = 0;
+async function loadBots(){
+  try { const r = await api("/api/botlist"); STATE.bots = (r && r.bots) || []; }
+  catch(e){ STATE.bots = STATE.bots || []; }
+  renderBots();
+}
+function renderBots(){
+  const box = document.getElementById("bot-list");
+  if (!box) return;
+  const bots = STATE.bots || [];
+  const slots = Array.from({length:10}, (_,i)=>({i, items: bots.filter(b=>(b.slot||0)===i)}));
+  box.innerHTML = `<div style="display:flex;gap:16px;align-items:flex-start">
+    <div style="width:260px;max-height:640px;overflow:auto;background:#0f172a;color:#e5e7eb;border-radius:12px;padding:8px">
+      ${slots.map(s=>`<div onclick="BOT_CUR=${s.i};renderBots()" style="padding:10px;margin-bottom:8px;border-radius:8px;cursor:pointer;background:${s.i===BOT_CUR?"#1d4ed8":"#111827"}"><b>${s.i+1}组</b> <span style="opacity:.8">${s.items.length}/10</span></div>`).join("")}
+    </div>
+    <div style="flex:1">
+      ${(slots[BOT_CUR].items.map(b=>`<div class="card" style="padding:12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center">
+        <div><b>${esc(b.remark||"Bot")}</b><div class="muted">Token ${(b.token||"").slice(0,12)}...</div></div>
+        <button class="btn btn-danger btn-sm" onclick="delBot('${b.id}')">删除</button>
+      </div>`).join("")) || '<span class="muted">这组还没有机器人</span>'}
+    </div>
+  </div>`;
+}
+function renderWorkers() {
+    const list = STATE.workers || [];
+    if (!list.length) {
+        $('worker-list').innerHTML = '<p class="muted">暂无水军号，先在上方添加。</p>';
+        return;
+    }
+    $('worker-list').innerHTML = list.map(w => {
+        const st = w.status || 'offline';
+        const dot = st === 'online' || st === 'running' ? 'online' : (st === 'error' ? 'error' : 'offline');
+        const apiTxt = w.api_id ? ('API ' + w.api_id) : '未匹配 API';
+        const ipTxt = w.proxy || '未绑定代理';
+        return `<div class="account-card">
+            <div class="account-info">
+                <div class="name"><span class="status-dot ${dot}"></span>${esc(w.phone)}
+                    <span class="badge ${st==='online'||st==='running'?'badge-green':st==='wait_code'?'badge-orange':st==='error'?'badge-red':'badge-gray'}">${esc(w.status_text || st)}</span>
+                </div>
+                <div class="detail">${esc(apiTxt)} · ${esc(ipTxt)}</div>
+                <div class="form-row" style="margin:8px 0 0;align-items:center;">
+                    <div class="form-group" style="margin:0;">
+                        <input id="remark-${w.id}" value="${esc(w.remark || '')}" placeholder="备注，改完点保存">
+                    </div>
+                    <button class="btn btn-ghost btn-sm" onclick="saveWorkerRemark('${w.id}')">保存备注</button>
+                </div>
+            </div>
+            <div class="account-actions">
+                <button class="btn btn-success btn-sm" onclick="startWorker('${w.id}')">启动</button>
+                <button class="btn btn-warning btn-sm" onclick="stopWorker('${w.id}')">停止</button>
+                <button class="btn btn-primary btn-sm" onclick="openWorkerChat('${w.id}','${w.phone}')">聊天</button><button class="btn btn-danger btn-sm" onclick="delWorker('${w.id}')">删除</button>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function renderApis() {
+    const list = STATE.apis || [];
+    if (!list.length) {
+        $('api-saved-list').innerHTML = '<p class="muted">暂无 API，请在上方批量添加。</p>';
+        return;
+    }
+    $('api-saved-list').innerHTML = `<table>
+        <thead><tr><th>API ID</th><th>API Hash</th><th>占用水军</th><th>状态</th><th>操作</th></tr></thead>
+        <tbody>${list.map(a => {
+            const used = a.worker_phone || '';
+            return `<tr>
+                <td>${esc(a.api_id)}</td>
+                <td class="muted">${esc((a.api_hash || '').slice(0,8))}…${esc((a.api_hash || '').slice(-4))}</td>
+                <td>${used ? esc(used) : '<span class="muted">空闲</span>'}</td>
+                <td>${used ? '<span class="badge badge-blue">已占用</span>' : '<span class="badge badge-green">空闲</span>'}</td>
+                <td><button class="btn btn-danger btn-sm" onclick="delApi('${a.id}')">删除</button></td>
+            </tr>`;
+        }).join('')}</tbody></table>`;
+}
+
+function renderIps() {
+    const list = STATE.ips || [];
+    const workers = STATE.workers || [];
+    if (!list.length) {
+        $('ip-saved-list').innerHTML = '<p class="muted">暂无已保存代理。</p>';
+        return;
+    }
+    $('ip-saved-list').innerHTML = list.map(ip => {
+        const bound = new Set(ip.worker_ids || []);
+        const chips = workers.map(w => {
+            const on = bound.has(w.id) ? 'on bound' : '';
+            return `<span class="acc-chip ${on}" data-ip="${ip.id}" data-wid="${w.id}" onclick="toggleChip(this)">${esc(w.phone)}${w.remark ? ' · '+esc(w.remark) : ''}</span>`;
+        }).join('') || '<span class="muted">还没有水军号</span>';
+        return `<div class="ip-card">
+            <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;">
+                <div>
+                    <div style="font-weight:600;">${esc(ip.display)}</div>
+                    <div class="muted">${esc(ip.type || 'socks5')} · 已绑 ${(ip.worker_ids || []).length} 个水军</div>
+                </div>
+                <button class="btn btn-danger btn-sm" onclick="delIp('${ip.id}')">删除</button>
+            </div>
+            <div style="margin-top:10px;">
+                <div class="muted" style="margin-bottom:4px;">独立勾选指定水军号后点绑定</div>
+                <div id="chips-${ip.id}">${chips}</div>
+                <div style="margin-top:8px;">
+                    <button class="btn btn-primary btn-sm" onclick="bindIp('${ip.id}')">绑定所选水军</button>
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function toggleChip(el) { el.classList.toggle('on'); }
+
+function selectedWorkerIds(ipId) {
+    return [...document.querySelectorAll(`#chips-${ipId} .acc-chip.on`)].map(x => x.dataset.wid);
+}
+
+
+function isGroupOpen(id){ return localStorage.getItem("fwd-open-"+id)!=="0"; }
+function setGroupOpen(id,o){ localStorage.setItem("fwd-open-"+id, o?"1":"0"); }
+function toggleGroupEdit(id){
+  const open=!isGroupOpen(id);
+  setGroupOpen(id,open);
+  const btn=document.getElementById("gopen-"+id);
+  if(btn) btn.textContent=open?"关闭本组":"打开本组";
+  const card=btn?btn.closest(".group-card")||btn.closest(".card")||btn.parentElement.parentElement:null;
+  if(!card) return;
+  const kids=[...card.children];
+  const idx=kids.findIndex(n=>n.contains(btn));
+  kids.forEach((n,i)=>{ if(i>idx) n.style.display=open?"":"none"; });
+}
+function renderGroups() {
+    const list = STATE.groups || [];
+    const workers = STATE.workers || [];
+    if (!list.length) {
+        $('group-list').innerHTML = '<p class="muted">还没有转发组。</p>';
+        return;
+    }
+    $('group-list').innerHTML = list.map(g => {
+        const running = g.running;
+        const targets = g.targets || [];
+        const workerOpts = workers.map(w => `<option value="${w.id}" ${g.worker_id===w.id?'selected':''}>${esc(w.phone)}${w.remark?' · '+esc(w.remark):''}</option>`).join('');
+        return `<div class="fwd-card account-card" style="flex-direction:column;align-items:stretch;">
+            <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+                <div>
+                    <div class="name">源：${esc(g.source_remark || g.source)}
+                        ${running ? '<span class="badge badge-green">运行中</span>' : '<span class="badge badge-gray">已停止</span>'}
+                    </div>
+                    <div class="detail">源 ${esc(g.source || "")} · 水军 ${esc(g.worker_id || "自动")} · 已转发 ${g.forwarded || 0} 条 · 目标 ${targets.length} 个</div>
+                </div>
+                <div class="account-actions">
+                    <button class="btn btn-success btn-sm" onclick="collectNow('${g.id}')">立即采集发布</button>
+                                        <button class="btn btn-success btn-sm" onclick="startGroup('${g.id}')">启动本组</button>
+                    <button class="btn btn-warning btn-sm" onclick="stopGroup('${g.id}')">停止</button>
+                    <button class="btn btn-danger btn-sm" onclick="delGroup('${g.id}')">删除组</button>
+                    <button class="btn btn-primary btn-sm" id="gopen-${g.id}" onclick="toggleGroupEdit('${g.id}')">${isGroupOpen(g.id)?"关闭本组":"打开本组"}</button>
+                    
+            </div>
+            <div id="gbody-${g.id}" style="display:${isGroupOpen(g.id)?"":"none"}">
+                </div>
+            </div>
+            <div id="gbody-${g.id}" style="display:${isGroupOpen(g.id)?"":"none"}">
+            <div class="form-row" style="margin-top:12px;">
+                <div class="form-group">
+                    <label>源备注标注</label>
+                    <input id="gsr-${g.id}" value="${esc(g.source_remark || '')}" placeholder="源订阅备注">
+                </div>
+                <div class="form-group" style="flex:0 0 auto;">
+                    <label>&nbsp;</label>
+                    <button class="btn btn-ghost btn-sm" onclick="saveSourceRemark('${g.id}')">保存源备注</button>
+                </div>
+                <div class="form-group">
+                    <label>指定水军号（可选，空则自动选在线号）</label>
+                    <select id="gw-${g.id}" multiple size="6"><option value="">自动匹配在线水军</option>${workerOpts}</select>
+                </div>
+                <div class="form-group" style="flex:0 0 auto;">
+                    <label>&nbsp;</label>
+                    <button class="btn btn-ghost btn-sm" onclick="saveGroupWorker('${g.id}')">保存指定水军</button>
+                </div>
+                <div class="for
+                </div>
+            </div>
+                    </div>`;
+    }).join('');
+}
+
+async function createGroup() {
+    const source = $('src-input').value.trim();
+    const source_remark = $('src-remark').value.trim();
+    if (!source) return toast('请填写源订阅号');
+    const r = await api('/api/groups', 'POST', { source, source_remark });
+    if (r.status !== 'ok') return toast(r.message || '创建失败');
+    $('src-input').value = ''; $('src-remark').value = '';
+    toast('转发组已创建，可继续添加多个目标');
+    refreshAll();
+}
+async function saveSourceRemark(id) {
+    const r = await api(`/api/groups/${id}/source-remark`, 'POST', { source_remark: $('gsr-'+id).value.trim() });
+    toast(r.status === 'ok' ? '源备注已保存' : (r.message || '失败'));
+}
+
+async function confirmGroupBots(id){
+  const sel = $("gbot-"+id);
+  if(!sel) return toast("找不到选择框");
+  const picked = [...sel.options].filter(o=>o.selected && o.value).map(o=>o.value);
+  if(!picked.length) return toast("先点选Bot");
+  const g = (STATE.groups||[]).find(x=>x.id===id) || {};
+  const old = g.bot_ids || (g.bot_id ? [g.bot_id] : []);
+  const ids = Array.from(new Set(old.concat(picked)));
+  g.bot_ids = ids;
+  g.bot_id = ids[0]||"";
+  const r = await api("/api/groups/"+id+"/bot","POST",{bot_id:g.bot_id, bot_ids:ids});
+  toast(r.message || "已确认");
+  refreshAll();
+}
+
+async function confirmGroupBots_old(id){ const sel=$("gbot-"+id); const names=[...sel.options].filter(o=>o.selected&&o.value).map(o=>o.text); toast(names.length?("已确认使用: "+names.join("、")):"未选Bot"); }
+async function saveGroupBot(id){
+  const r = await api("/api/groups/"+id+"/bot","POST",{bot_id: $("gbot-"+id).value});
+  toast(r.message || "已保存发布Bot");
+}
+async function saveGroupWorker(id) {
+    const r = await api(`/api/groups/${id}/worker`, 'POST', { worker_id: $('gw-'+id).value });
+    toast(r.status === 'ok' ? '已指定水军' : (r.message || '失败'));
+}
+async function saveTargetBot(gid,tid){
+  const botId=$("tbot-"+gid+"-"+tid).value;
+  const r=await api("/api/groups/"+gid+"/target-bot","POST",{target_id:tid,bot_id:botId});
+  toast(r.message||"已指定");
+  const _sy=window.scrollY; refreshAll(); window.scrollTo(0,_sy);
+}
+async function addTarget(id) {
+    const username = $('gt-'+id).value.trim();
+    const remark = $('gtr-'+id).value.trim();
+    if (!username) return toast('请填写目标订阅号');
+    const r = await api(`/api/groups/${id}/targets`, 'POST', { username, remark });
+    if (r.status !== 'ok') return toast(r.message || '失败');
+    toast('目标已加入本组');
+    const _sy=window.scrollY; refreshAll(); window.scrollTo(0,_sy);
+}
+async function delTarget(gid, tid) {
+    if (!confirm('删除该目标订阅号？')) return;
+    await api(`/api/groups/${gid}/targets/${tid}`, 'DELETE');
+    refreshAll();
+}
+async function startGroup(id) {
+    const r = await api(`/api/groups/${id}/start`, 'POST');
+    toast(r.message || (r.status === 'ok' ? '本组已启动' : '启动失败'));
+    refreshAll();
+}
+async function stopGroup(id) {
+    const r = await api(`/api/groups/${id}/stop`, 'POST');
+    toast(r.message || '已停止');
+    refreshAll();
+}
+async function delGroup(id) {
+    if (!confirm('删除整个转发组？')) return;
+    await api(`/api/groups/${id}`, 'DELETE');
+    refreshAll();
+}
+
+async function batchAddWorkers(){
+  const lines = (document.getElementById("batch-workers").value || "").split(/\n+/).map(s=>s.trim()).filter(Boolean);
+  if (!lines.length) return toast("请粘贴手机号");
+  let ok = 0;
+  for (const line of lines){
+    const parts = line.split(",").map(s=>s.trim());
+    const phone = parts[0];
+    const password = parts[1] || "";
+    const remark = parts[2] || "";
+    const r = await api("/api/workers","POST",{phone, password, remark});
+    if (r && r.status==="ok") ok++;
+    else toast((phone||"") + " " + ((r&&r.message)||"失败"));
+  }
+  document.getElementById("batch-workers").value = "";
+  toast("已加入 " + ok + " 个");
+  refreshAll();
+}
+async function importWorkerZip(){
+  const f = document.getElementById("worker-zip").files[0];
+  if (!f) return toast("请选择桌面上的ZIP");
+  const fd = new FormData();
+  fd.append("file", f);
+  const r = await fetch("/api/workers/import-zip", {method:"POST", body: fd}).then(x=>x.json());
+  toast(r.message || "完成");
+  document.getElementById("worker-zip").value = "";
+  refreshAll();
+}
+async function addWorker() {
+    const phone = $('w-phone').value.trim();
+    if (!phone) return toast('请填写手机号');
+    const r = await api('/api/workers', 'POST', {
+        phone,
+        twofa: $('w-2fa').value,
+        remark: $('w-remark').value.trim()
+    });
+    if (r.status !== 'ok') return toast(r.message || '添加失败');
+    $('w-phone').value = ''; $('w-2fa').value = ''; $('w-remark').value = '';
+    toast('水军已添加');
+    refreshAll();
+}
+async function saveWorkerRemark(id) {
+    const r = await api(`/api/workers/${id}/remark`, 'POST', { remark: $('remark-'+id).value.trim() });
+    toast(r.status === 'ok' ? '备注已保存' : (r.message || '失败'));
+}
+async function startWorker(id) {
+    const r = await api(`/api/workers/${id}/start`, 'POST');
+    if (r.need_code) {
+        VERIFY_ID = id;
+        $('verify-hint').textContent = r.message || '验证码已发送，请填写后确认。登录将自动匹配空闲 API。';
+        $('verify-code').value = '';
+        $('verify-modal').classList.add('active');
+        return;
+    }
+    toast(r.message || (r.status === 'ok' ? '已启动' : '启动失败'));
+    refreshAll();
+}
+async function submitVerify() {
+    if (!VERIFY_ID) return;
+    const r = await api(`/api/workers/${VERIFY_ID}/verify`, 'POST', {
+        code: $('verify-code').value.trim(),
+        password: $('verify-password').value
+    });
+    toast(r.message || (r.status === 'ok' ? '登录成功' : '验证失败'));
+    if (r.status === 'ok') closeModal();
+    refreshAll();
+}
+function closeModal() { $('verify-modal').classList.remove('active'); VERIFY_ID = null; }
+async function stopWorker(id) {
+    const r = await api(`/api/workers/${id}/stop`, 'POST');
+    toast(r.message || '已停止');
+    refreshAll();
+}
+async function delWorker(id) {
+    if (!confirm('删除该水军号？session 也会清除')) return;
+    await api(`/api/workers/${id}`, 'DELETE');
+    refreshAll();
+}
+
+async function addIps() {
+    const text = $('ip-new-text').value.trim();
+    if (!text) return toast('请填写要新增的代理');
+    const r = await api('/api/pools/ip', 'POST', { text });
+    toast(r.message || `已新增 ${r.added || 0} 条`);
+    if (r.status === 'ok') $('ip-new-text').value = '';
+    refreshAll();
+}
+async function bindIp(id) {
+    const worker_ids = selectedWorkerIds(id);
+    const r = await api(`/api/pools/ip/${id}/bind`, 'POST', { worker_ids });
+    toast(r.message || '已绑定');
+    refreshAll();
+}
+async function delIp(id) {
+    if (!confirm('删除该代理？')) return;
+    await api(`/api/pools/ip/${id}`, 'DELETE');
+    refreshAll();
+}
+
+async function addApis() {
+    const text = $('api-new-text').value.trim();
+    if (!text) return toast('请填写 API');
+    const r = await api('/api/pools/api', 'POST', { text });
+    toast(r.message || `已新增 ${r.added || 0} 条`);
+    if (r.status === 'ok') $('api-new-text').value = '';
+    refreshAll();
+}
+async function delApi(id) {
+    if (!confirm('删除该 API？')) return;
+    const r = await api(`/api/pools/api/${id}`, 'DELETE');
+    toast(r.message || '已删除');
+    refreshAll();
+}
+
+async function loadLogs() {
+    const r = await api('/api/logs');
+    const logs = r.logs || [];
+    if (!logs.length) { $('log-box').innerHTML = '暂无日志'; return; }
+    $('log-box').innerHTML = logs.map(l => {
+        const cls = l.level === 'error' ? 'log-error' : (l.level === 'warn' ? 'log-warn' : 'log-info');
+        return `<div><span class="log-time">${esc(l.time)}</span> <span class="${cls}">${esc(l.msg)}</span></div>`;
+    }).join('');
+    $('log-box').scrollTop = $('log-box').scrollHeight;
+}
+
+async function doLogout() {
+    await api('/api/logout', 'POST');
+    location.href = '/login.html';
+}
+
+(async function boot() {
+    try {
+        const st = await api('/api/auth/status');
+        if (!st.logged_in) { location.href = '/login.html'; return; }
+    } catch (e) { location.href = '/login.html'; return; }
+    await refreshAll();
+    setInterval(refreshAll, 5000);
+})();
+
+async function collectNow(id){
+  toast("正在采集源并交给Bot发布");
+  const r = await api("/api/groups/"+id+"/collect-now","POST");
+  toast(r.message || (r.status==="ok" ? "完成" : "失败"));
+}
+
+setTimeout(async function(){
+  try{
+    const r = await fetch("/api/botlist").then(x=>x.json());
+    STATE.bots = r.bots || [];
+    if (typeof renderBots === "function") renderBots();
+  }catch(e){}
+}, 500);
+</script>
+<div id="tab-hub" style="display:none;height:calc(100vh - 80px)"><iframe src="/hub" style="width:100%;height:100%;border:0;background:#0e1624"></iframe></div>
+<div id="slot-root" style="max-width:1100px;margin:16px auto;background:#fff;border-radius:12px;padding:16px"></div>
+<script src="/static/slots.js"></script>
+<script id="stat-frame-js">
+const STAT_COLOR={"转发组":"#3b82f6","运行中组":"#22c55e","水军号":"#f59e0b","在线水军":"#a855f7","IP池":"#38bdf8","API池":"#8b5cf6","已转发":"#ef4444"};
+const TAB_COLOR={"订阅转发":"#3b82f6","水军账号":"#22c55e","发布机器人":"#f59e0b","目标订阅号管理":"#a855f7","IP池":"#38bdf8","API池":"#8b5cf6","运行日志":"#ef4444"};
+function paintStats(){
+  document.querySelectorAll("div").forEach(el=>{
+    const t=(el.innerText||"").replace(/\s+/g,"");
+    if(TAB_COLOR[t]) return;
+    for(const k in STAT_COLOR){
+      if(t.endsWith(k) && t.length<12 && el.children.length<=3){
+        el.style.border="2px solid "+STAT_COLOR[k];
+        el.style.borderRadius="12px";
+        el.style.padding="16px 8px";
+        el.style.margin="6px";
+      }
+    }
+  });
+  document.querySelectorAll("button,a,div,span").forEach(el=>{
+    const t=(el.innerText||"").replace(/\s+/g,"");
+    if(TAB_COLOR[t] && t.length<12){
+      el.style.border="2px solid "+TAB_COLOR[t];
+      el.style.borderRadius="10px";
+      el.style.padding="6px 12px";
+      el.style.margin="0 4px";
+      el.style.color="#fff";
+    }
+  });
+}
+setInterval(paintStats, 1000);
+paintStats();
+</script><script id="worker-chat-js">
+function openWorkerChat(id, phone){
+  let box=document.getElementById("wchat");
+  if(!box){
+    box=document.createElement("div");
+    box.id="wchat";
+    box.style.cssText="position:fixed;right:16px;bottom:16px;width:380px;height:520px;background:#111;color:#fff;border:1px solid #38bdf8;border-radius:12px;z-index:99;display:flex;flex-direction:column";
+    box.innerHTML='<div style="padding:10px;border-bottom:1px solid #333;display:flex;justify-content:space-between"><b id="wchat-title">聊天</b><button onclick="document.getElementById(\'wchat\').style.display=\'none\'">关闭</button></div><div id="wchat-list" style="flex:1;overflow:auto;padding:10px"></div><div style="display:flex;gap:6px;padding:8px"><input id="wchat-text" style="flex:1" placeholder="回复"><button class="btn btn-primary btn-sm" onclick="sendWorkerChat()">发送</button></div>';
+    document.body.appendChild(box);
+  }
+  box.style.display="flex";
+  box.dataset.id=id;
+  document.getElementById("wchat-title").textContent=phone+" 聊天";
+  loadWorkerChat();
+}
+async function loadWorkerChat(){
+  const id=document.getElementById("wchat").dataset.id;
+  const r=await api("/api/workers/"+id+"/chats");
+  const list=document.getElementById("wchat-list");
+  list.innerHTML=(r.messages||[]).map(m=>'<div style="margin:6px 0"><b>'+(m.out?"我":m.from)+'</b><div>'+m.text+'</div></div>').join("")||'<div class="muted">暂无消息</div>';
+  list.scrollTop=list.scrollHeight;
+}
+async function sendWorkerChat(){
+  const id=document.getElementById("wchat").dataset.id;
+  const text=document.getElementById("wchat-text").value.trim();
+  if(!text) return;
+  await api("/api/workers/"+id+"/chats","POST",{text});
+  document.getElementById("wchat-text").value="";
+  loadWorkerChat();
+}
+setInterval(()=>{return;
+  document.querySelectorAll("button").forEach(b=>{
+    if(b.textContent.trim()!=="删除") return;
+    const row=b.parentElement;
+    if(!row || row.querySelector(".wchat-btn")) return;
+    const card=b.closest("div");
+    const phone=(card && card.innerText || "").match(/\+\d{6,}/);
+    const id=(b.getAttribute("onclick")||"").match(/w_[a-z0-9]+/);
+    if(!id) return;
+    const n=document.createElement("button");
+    n.className="btn btn-primary btn-sm wchat-btn";
+    n.textContent="聊天";
+    n.style.marginRight="6px";
+    n.onclick=()=>openWorkerChat(id[0], phone?phone[0]:id[0]);
+    b.parentElement.insertBefore(n, b);
+  });
+}, 1200);
+</script><script id="no-jump-workers">
+const _oldRefresh = window.refreshAll;
+window.refreshAll = async function(){
+  const box=document.getElementById("wchat");
+  if(box && box.style.display!=="none") return;
+  const y=window.scrollY;
+  if(_oldRefresh) await _oldRefresh();
+  window.scrollTo(0,y);
+};
+</script><script>
+async function bindWgWorker(id){
+  const wid=document.getElementById("wgw-"+id).value;
+  const r=await api("/api/wgroups/"+id+"/worker","POST",{worker_id:wid});
+  toast((r&&r.message)||"已绑定");
+  if(typeof refreshAll==="function") refreshAll();
+}
+</script><script id="tab-fix">
+function switchTab(name){
+  ["forward","workers","bots","targets","ip","api","logs"].forEach(function(n){
+    var p = document.getElementById("tab-"+n);
+    if(p) p.style.display = n===name ? "block" : "none";
+  });
+  document.querySelectorAll(".tab").forEach(function(el){
+    el.classList.toggle("active", (el.getAttribute("onclick")||"").indexOf("'"+name+"'")>=0);
+  });
+}
+</script><script id="fill-stats">
+function putAfter(title, html){
+  const el = [...document.querySelectorAll("div,h3,p,b")].find(x => x.childNodes.length < 4 && (x.textContent||"").trim()===title);
+  if(!el) return;
+  let box = el.nextElementSibling;
+  if(!box || !box.id || box.id.indexOf("live-")!==0){
+    box = document.createElement("div");
+    box.id = "live-"+title;
+    el.after(box);
+  }
+  box.innerHTML = html;
+}
+async function fillStats(){
+  try{
+    const d = await fetch("/api/overview?t="+Date.now()).then(r=>r.json());
+    const s = d.stats||{};
+    const map = {"stat-groups":s.groups,"stat-running":s.running_groups,"stat-workers":s.workers,"stat-online":s.online_workers,"stat-ip":s.ips,"stat-api":s.apis,"stat-fwd":s.forwarded};
+    Object.keys(map).forEach(id=>{ const el=document.getElementById(id); if(el && map[id]!=null) el.textContent=map[id]; });
+    const ws = d.workers||[];
+    const gs = d.groups||[];
+    const ghtml = gs.map(g=>{
+      const w = ws.find(x=>x.id===g.worker_id);
+      const ts = (g.targets||[]).map(t=>'<div style="padding:4px 0;border-top:1px solid #333">'+(t.username||t.id)+'</div>').join("");
+      return '<div style="border:1px solid #334155;border-radius:10px;padding:10px;margin-top:8px"><b>'+(g.source||g.id)+'</b><div>水军 '+(w&&w.phone?w.phone:"未绑")+'</div><div>目标 '+((g.targets||[]).length)+'</div>'+ts+'</div>';
+    }).join("") || '<div style="color:#94a3b8;padding:8px">还没有转发组</div>';
+    const box = document.getElementById("worker-cols");
+    if(box) box.innerHTML = ghtml;
+    putAfter("水军号组列", ghtml);
+    putAfter("已保存代理列表", (d.ips||[]).map(x=>'<div style="padding:6px 0;border-bottom:1px solid #333">'+(x.display||x.host||x.id)+'</div>').join("") || '<div style="color:#94a3b8">没有代理</div>');
+    putAfter("已保存 API 列表", (d.apis||[]).map(x=>'<div style="padding:6px 0;border-bottom:1px solid #333">'+(x.api_id||x.id)+'</div>').join("") || '<div style="color:#94a3b8">没有 API</div>');
+    putAfter("固定发布 Bot", (d.bots||[]).map(x=>'<div style="padding:6px 0;border-bottom:1px solid #333">'+(x.remark||x.id)+'</div>').join("") || '<div style="color:#94a3b8">没有 Bot</div>');
+  }catch(e){}
+}
+fillStats();
+setInterval(fillStats, 8000);
+</script><script id="fill-logs">
+async function fillLogs(){
+  const box = document.getElementById("tab-logs");
+  if(!box) return;
+  let lines = [];
+  try{
+    const d = await fetch("/api/overview?t="+Date.now()).then(r=>r.json());
+    lines = d.logs || [];
+  }catch(e){}
+  if(!lines.length){
+    const old = box.querySelector("#live-logs");
+    if(old) return;
+  }
+  let hold = box.querySelector("#live-logs");
+  if(!hold){
+    hold = document.createElement("div");
+    hold.id = "live-logs";
+    hold.style.cssText = "margin-top:12px;font-size:13px;line-height:1.6";
+    box.appendChild(hold);
+  }
+  const text = (lines.length? lines : ["{'time': '2026-09-16 17:43:04', 'level': 'error', 'msg': '+19123968666 发送验证码失败: A wait of 79 seconds is required (caused by SendCodeRequest)'}", "{'time': '2026-09-16 17:43:10', 'level': 'error', 'msg': '+19123968666 发送验证码失败: A wait of 73 seconds is required (caused by SendCodeRequest)'}", "{'time': '2026-09-16 17:43:16', 'level': 'error', 'msg': '+19123968666 发送验证码失败: A wait of 67 seconds is required (caused by SendCodeRequest)'}", "{'time': '2026-09-16 17:43:22', 'level': 'error', 'msg': '+19123968666 发送验证码失败: A wait of 61 seconds is required (caused by SendCodeRequest)'}", "{'time': '2026-09-16 17:44:24', 'level': 'info', 'msg': '+19123968666 验证码已发送，已预占 API 31269650'}", "{'time': '2026-09-16 17:44:30', 'level': 'info', 'msg': '+19123968666 验证码已发送，已预占 API 31269650'}", "{'time': '2026-09-16 17:44:36', 'level': 'info', 'msg': '+19123968666 验证码已发送，已预占 API 31269650'}", "{'time': '2026-09-16 17:44:42', 'level': 'info', 'msg': '+19123968666 验证码已发送，已预占 API 31269650'}", "{'time': '2026-09-16 17:44:48', 'level': 'info', 'msg': '+19123968666 验证码已发送，已预占 API 31269650'}", "{'time': '2026-09-16 17:44:50', 'level': 'info', 'msg': '+19123968666 验证码已发送，已预占 API 31269650'}", "{'time': '2026-09-16 17:44:54', 'level': 'info', 'msg': '+19123968666 验证码已发送，已预占 API 31269650'}", "{'time': '2026-09-16 17:45:00', 'level': 'info', 'msg': '+19123968666 验证码已发送，已预占 API 31269650'}", "{'time': '2026-09-16 17:45:02', 'level': 'info', 'msg': '+19123968666 验证通过，API 31269650 已绑定'}", "{'time': '2026-09-17 01:54:05', 'level': 'info', 'msg': '+19123968666 已用 API 31269650 登录'}", "{'time': '2026-10-02 09:18:36', 'level': 'info', 'msg': '+19123968666 已用 API 31269650 登录'}", "{'time': '2026-10-02 09:20:26', 'level': 'info', 'msg': '+19123968666 已用 API 31269650 登录'}", "{'time': '2026-10-02 09:25:56', 'level': 'info', 'msg': 'IP 池新增 1 条'}", "{'time': '2026-10-02 09:31:43', 'level': 'info', 'msg': '代理 ip_e9fa032311 绑定水军 5 个'}", "{'time': '2026-10-02 09:31:48', 'level': 'info', 'msg': '代理 ip_e9fa032311 绑定水军 7 个'}", "{'time': '2026-10-02 09:32:55', 'level': 'info', 'msg': '新建转发组 @heitaodj'}", "{'time': '2026-10-03 17:50:36', 'level': 'info', 'msg': '+12707418221 验证码已发送，已预占 API 37469924'}", "{'time': '2026-10-03 18:13:30', 'level': 'info', 'msg': '添加水军 +6285801191432'}", "{'time': '2026-10-03 18:13:40', 'level': 'info', 'msg': '+6285801191432 验证码已发送，已预占 API 37469924'}", "{'time': '2026-10-03 18:14:13', 'level': 'info', 'msg': '+6285801191432 验证通过，API 37469924 已绑定'}", "{'time': '2026-10-03 18:14:37', 'level': 'info', 'msg': '代理 ip_e9fa032311 绑定水军 1 个'}", "{'time': '2026-10-03 18:17:50', 'level': 'info', 'msg': '+6285801191432 已用 API 37469924 登录'}", "{'time': '2026-10-03 18:19:00', 'level': 'info', 'msg': '+6285801191432 已用 API 37469924 登录'}", "{'time': '2026-10-03 18:23:31', 'level': 'info', 'msg': '+6285801191432 已用 API 37469924 登录'}", "{'time': '2026-10-03 18:23:58', 'level': 'info', 'msg': '+6285801191432 已用 API 37469924 登录'}", "{'time': '2026-10-03 18:24:43', 'level': 'info', 'msg': '+6285801191432 已用 API 37469924 登录'}"]).slice(-30);
+  hold.innerHTML = text.map(x=>'<div style="padding:4px 0;border-bottom:1px solid #222">'+(typeof x==="string"?x:(x.message||x.text||JSON.stringify(x)))+'</div>').join("") || '<div style="color:#94a3b8">暂无日志</div>';
+}
+fillLogs();
+setInterval(fillLogs, 8000);
+</script></body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
