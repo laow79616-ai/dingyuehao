@@ -1,59 +1,84 @@
 [
   {
-    "id": "g_a31ddfa695",
+    "id": "g_e87ccc3847",
     "source": "@heitaodj",
     "source_remark": "黑桃🍑AI万部大片资源站",
     "targets": [
       {
-        "id": "t_b1231fa758",
+        "id": "t_luohan",
         "username": "@Luohanguocmav",
-        "remark": "黄豆魔改短剧丨官方网"
+        "remark": "黄豆腐改短剧 | 官方网",
+        "bot_id": "bot_34ede764c9"
       },
       {
-        "id": "t_9f4ef8bc90",
+        "id": "t_baixiang",
         "username": "@Baixiangguocmav",
-        "remark": "AI成人短剧丨黄果视频"
+        "remark": "AI成人短剧 | 黄果视频",
+        "bot_id": "bot_0dd46e4e22"
       },
       {
-        "id": "t_16a97145f1",
+        "id": "t_59e275c232",
         "username": "@Shanzhucmvv",
-        "remark": "黄果短剧丨ai漫改成人涩短剧"
+        "remark": "黄果短剧丨ai漫改成人涩短剧",
+        "bot_id": "bot_34ede764c9"
       },
       {
-        "id": "t_db15a29079",
+        "id": "t_2e7dbf2810",
         "username": "@Wumeicmvv",
-        "remark": "AI成人短剧（黄果短剧大全）"
-      },
-      {
-        "id": "t_c18dbdfb3a",
-        "username": "@Maticmav",
-        "remark": "AI成人短剧 免费看【黄果短剧】"
-      },
-      {
-        "id": "t_befebff9d2",
-        "username": "@Danhuangguocmav",
-        "remark": "三级片动漫丨ai成人短剧丨ai短剧"
-      },
-      {
-        "id": "t_ac50d7e6ac",
-        "username": "@Wuhuaguocmav",
-        "remark": "豆音ai短剧丨黄果短剧丨黄豆短剧"
-      },
-      {
-        "id": "t_aa698e64d7",
-        "username": "@Shengnvguocmav",
-        "remark": "AI成人短剧 AI视频"
-      },
-      {
-        "id": "t_49f6da9790",
-        "username": "@Nihoutaocmav",
-        "remark": "AI短剧 AI成人黄片"
+        "remark": "AI成人短剧（黄果短剧大全）",
+        "bot_id": "bot_34ede764c9"
       }
     ],
+    "worker_id": "",
+    "running": false,
+    "forwarded": 0,
+    "created_at": "2026-10-04 08:15:13",
+    "last_msg_id": 405
+  },
+  {
+    "id": "g_0ee60a7480",
+    "source": "@heitaodj",
+    "source_remark": "黑桃🍑AI万部大片资源站",
+    "targets": [],
+    "worker_id": "",
+    "running": false,
+    "forwarded": 0,
+    "created_at": "2026-10-04 08:15:13",
+    "last_msg_id": 405
+  },
+  {
+    "id": "g_dcb11a04ed",
+    "source": "@heitaodj",
+    "source_remark": "黑桃🍑AI万部大片资源站",
+    "targets": [],
+    "worker_id": "",
+    "running": false,
+    "forwarded": 0,
+    "created_at": "2026-10-04 08:15:10",
+    "last_msg_id": 405
+  },
+  {
+    "id": "g_a31ddfa695",
+    "source": "@heitaodj",
+    "source_remark": "黑桃🍑AI万部大片资源站",
+    "targets": [],
     "worker_id": "w_9695121c70",
     "running": false,
     "forwarded": 0,
     "created_at": "2026-10-02 09:32:55",
-    "last_msg_id": 375
+    "last_msg_id": 405
+  },
+  {
+    "id": "g_heitaodj",
+    "source": "t.me/heitaodj",
+    "source_remark": "黑桃 AI万部大片资源站",
+    "worker_ids": [
+      "+6285801191432",
+      "+919023143150",
+      "+919023774825"
+    ],
+    "targets": [],
+    "enabled": true,
+    "forwarded": 0
   }
 ]

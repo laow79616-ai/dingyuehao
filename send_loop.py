@@ -437,6 +437,482 @@ panel.app.add_url_rule("/targets", "page_targets", page_targets, methods=["GET"]
 panel.app.add_url_rule("/api/slots/auto", "api_slot_auto", api_slot_auto, methods=["POST"])
 print("auto-slot ready")
 
+
+def worker_code_v10(wid):
+    from flask import request, jsonify
+    body = request.get_json(silent=True) or {}
+    code = str(body.get("code") or "").strip()
+    if not code:
+        return jsonify({"status": "error", "message": "没有验证码"})
+    async def run():
+        workers = panel.load_json(panel.DATA / "workers.json", [])
+        w = next((x for x in workers if x.get("id") == wid), None)
+        if not w:
+            return {"status": "error", "message": "没有这个水军"}
+        h = w.get("phone_code_hash") or ""
+        if not h:
+            return {"status": "error", "message": "没有hash，先点启动再提交新码"}
+        phone = str(w.get("phone") or "").replace(" ", "")
+        client, info = await panel._create_client(w)
+        await client.connect()
+        await client.sign_in(phone, code, phone_code_hash=h)
+        me = await client.get_me()
+        for x in workers:
+            if x.get("id") == wid:
+                x["status"] = "online"
+                x["status_text"] = "在线"
+        panel.save_json(panel.DATA / "workers.json", workers)
+        return {"status": "ok", "message": "已登录 " + str(me.phone)}
+    try:
+        return jsonify(panel.run_async(run(), timeout=90))
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)})
+
+if "worker_code_v10" not in [r.endpoint for r in panel.app.url_map.iter_rules()]:
+    panel.app.add_url_rule("/api/workers/<wid>/code", "worker_code_v10", worker_code_v10, methods=["POST"])
+print("code route ready")
+
+
+def worker_start_v10(wid):
+    from flask import jsonify
+    async def run():
+        workers = panel.load_json(panel.DATA / "workers.json", [])
+        w = next((x for x in workers if x.get("id") == wid), None)
+        if not w:
+            return {"status": "error", "message": "没有这个水军"}
+        phone = str(w.get("phone") or "").replace(" ", "")
+        client, info = await panel._create_client(w)
+        await client.connect()
+        if await client.is_user_authorized():
+            w["status"] = "online"
+            w["status_text"] = "在线"
+            panel.save_json(panel.DATA / "workers.json", workers)
+            me = await client.get_me()
+            return {"status": "ok", "message": "已在线 " + str(me.phone)}
+        sent = await client.send_code_request(phone)
+        w["phone_code_hash"] = sent.phone_code_hash
+        w["status"] = "wait_code"
+        w["status_text"] = "等待验证码"
+        panel.save_json(panel.DATA / "workers.json", workers)
+        return {"status": "ok", "message": "已发送，hash已保存"}
+    try:
+        return jsonify(panel.run_async(run(), timeout=90))
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)})
+panel.app.add_url_rule("/api/workers/<wid>/start", "worker_start_v10", worker_start_v10, methods=["POST"])
+print("start route ready")
+
+
+def workers_add_v11():
+    from flask import request, jsonify
+    body = request.get_json(silent=True) or {}
+    phone = "".join(ch for ch in str(body.get("phone") or "") if ch.isdigit() or ch == "+")
+    if not phone.startswith("+"):
+        phone = "+" + phone
+    if len(phone) < 8:
+        return jsonify({"status": "error", "message": "手机号不对"})
+    workers = panel.load_json(panel.DATA / "workers.json", [])
+    if any(phone == str(w.get("phone") or "").replace(" ", "") for w in workers):
+        return jsonify({"status": "error", "message": "已存在", "workers": workers})
+    apis = panel.load_json(panel.DATA / "api_pool.json", [])
+    used = {w.get("api_id") for w in workers}
+    api = next((a for a in apis if a.get("id") not in used), apis[0] if apis else {})
+    workers.append({
+        "id": panel.new_id("w_"),
+        "phone": phone,
+        "password": body.get("password") or "",
+        "remark": body.get("remark") or "",
+        "status": "idle",
+        "status_text": "未启动",
+        "api_id": api.get("id"),
+        "created_at": panel.now_str(),
+    })
+    panel.save_json(panel.DATA / "workers.json", workers)
+    return jsonify({"status": "ok", "message": "已加入列表", "workers": workers})
+
+def worker_start_v11(wid):
+    from flask import jsonify
+    async def run():
+        workers = panel.load_json(panel.DATA / "workers.json", [])
+        w = next((x for x in workers if x.get("id") == wid), None)
+        if not w:
+            return {"status": "error", "message": "没有这个水军"}
+        phone = str(w.get("phone") or "").replace(" ", "")
+        client, info = await panel._create_client(w)
+        await client.connect()
+        if await client.is_user_authorized():
+            w["status"] = "online"
+            w["status_text"] = "在线"
+            panel.save_json(panel.DATA / "workers.json", workers)
+            me = await client.get_me()
+            return {"status": "ok", "message": "已在线 " + str(me.phone)}
+        sent = await client.send_code_request(phone)
+        w["phone_code_hash"] = sent.phone_code_hash
+        w["status"] = "wait_code"
+        w["status_text"] = "等待验证码"
+        panel.save_json(panel.DATA / "workers.json", workers)
+        return {"status": "ok", "message": "已发送，hash已保存"}
+    try:
+        return jsonify(panel.run_async(run(), timeout=90))
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)})
+
+def worker_code_v11(wid):
+    from flask import request, jsonify
+    body = request.get_json(silent=True) or {}
+    code = str(body.get("code") or "").strip()
+    async def run():
+        workers = panel.load_json(panel.DATA / "workers.json", [])
+        w = next((x for x in workers if x.get("id") == wid), None)
+        if not w:
+            return {"status": "error", "message": "没有这个水军"}
+        h = w.get("phone_code_hash") or ""
+        if not h:
+            return {"status": "error", "message": "没有hash，先点启动再提交新码"}
+        phone = str(w.get("phone") or "").replace(" ", "")
+        client, info = await panel._create_client(w)
+        await client.connect()
+        try:
+            await client.sign_in(phone, code, phone_code_hash=h, password=w.get("password") or None)
+        except Exception:
+            await client.sign_in(phone, code, phone_code_hash=h)
+        me = await client.get_me()
+        w["status"] = "online"
+        w["status_text"] = "在线"
+        panel.save_json(panel.DATA / "workers.json", workers)
+        return {"status": "ok", "message": "已登录 " + str(me.phone)}
+    try:
+        return jsonify(panel.run_async(run(), timeout=90))
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)})
+
+panel.app.add_url_rule("/api/workers", "workers_add_v11", workers_add_v11, methods=["POST"])
+panel.app.add_url_rule("/api/workers/<wid>/start", "worker_start_v11", worker_start_v11, methods=["POST"])
+panel.app.add_url_rule("/api/workers/<wid>/code", "worker_code_v11", worker_code_v11, methods=["POST"])
+print("worker routes v11 ready")
+
+
+def worker_start_v12(wid):
+    from flask import jsonify
+    async def run():
+        workers = panel.load_json(panel.DATA / "workers.json", [])
+        w = next((x for x in workers if x.get("id") == wid), None)
+        if not w:
+            return {"status": "error", "message": "没有这个水军"}
+        phone = str(w.get("phone") or "").replace(" ", "")
+        client, info = await panel._create_client(w)
+        await client.connect()
+        if await client.is_user_authorized():
+            w["status"] = "online"
+            w["status_text"] = "在线"
+            panel.save_json(panel.DATA / "workers.json", workers)
+            me = await client.get_me()
+            return {"status": "ok", "message": "已在线 " + str(me.phone)}
+        sent = await client.send_code_request(phone)
+        w["phone_code_hash"] = sent.phone_code_hash
+        w["status"] = "wait_code"
+        w["status_text"] = "等待验证码"
+        panel.save_json(panel.DATA / "workers.json", workers)
+        return {"status": "ok", "message": "已发送，hash已保存 " + sent.phone_code_hash[:8]}
+    try:
+        return jsonify(panel.run_async(run(), timeout=90))
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)})
+
+def worker_code_v12(wid):
+    from flask import request, jsonify
+    body = request.get_json(silent=True) or {}
+    code = str(body.get("code") or "").strip()
+    async def run():
+        workers = panel.load_json(panel.DATA / "workers.json", [])
+        w = next((x for x in workers if x.get("id") == wid), None)
+        if not w:
+            return {"status": "error", "message": "没有这个水军"}
+        h = w.get("phone_code_hash") or ""
+        if not h:
+            return {"status": "error", "message": "没有hash，先点启动再提交新码"}
+        phone = str(w.get("phone") or "").replace(" ", "")
+        client, info = await panel._create_client(w)
+        await client.connect()
+        await client.sign_in(phone, code, phone_code_hash=h)
+        me = await client.get_me()
+        w["status"] = "online"
+        w["status_text"] = "在线"
+        panel.save_json(panel.DATA / "workers.json", workers)
+        return {"status": "ok", "message": "已登录 " + str(me.phone)}
+    try:
+        return jsonify(panel.run_async(run(), timeout=90))
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)})
+
+for rule in list(panel.app.url_map.iter_rules()):
+    if rule.rule in ("/api/workers/<wid>/start", "/api/workers/<wid>/code"):
+        panel.app.view_functions[rule.endpoint] = worker_start_v12 if rule.rule.endswith("/start") else worker_code_v12
+panel.app.add_url_rule("/api/workers/<wid>/start", "worker_start_v12", worker_start_v12, methods=["POST"])
+panel.app.add_url_rule("/api/workers/<wid>/code", "worker_code_v12", worker_code_v12, methods=["POST"])
+print("start/code v12 ready")
+
+
+def worker_code_v13(wid):
+    from flask import request, jsonify
+    body = request.get_json(silent=True) or {}
+    code = str(body.get("code") or "").strip()
+    password = str(body.get("password") or "")
+    async def run():
+        workers = panel.load_json(panel.DATA / "workers.json", [])
+        w = next((x for x in workers if x.get("id") == wid), None)
+        if not w:
+            return {"status": "error", "message": "没有这个水军"}
+        h = w.get("phone_code_hash") or ""
+        if not h:
+            return {"status": "error", "message": "没有hash，先点启动再提交新码"}
+        phone = str(w.get("phone") or "").replace(" ", "")
+        pwd = password or w.get("password") or ""
+        client, info = await panel._create_client(w)
+        await client.connect()
+        try:
+            await client.sign_in(phone, code, phone_code_hash=h)
+        except Exception as e:
+            if "password" not in str(e).lower() and "Two-steps" not in str(e):
+                return {"status": "error", "message": str(e)}
+            if not pwd:
+                return {"status": "error", "message": "这个号开了2FA，请填写两步验证密码后再提交"}
+            await client.sign_in(password=pwd)
+        me = await client.get_me()
+        w["status"] = "online"
+        w["status_text"] = "在线"
+        if pwd:
+            w["password"] = pwd
+        panel.save_json(panel.DATA / "workers.json", workers)
+        return {"status": "ok", "message": "已登录 " + str(me.phone)}
+    try:
+        return jsonify(panel.run_async(run(), timeout=90))
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)})
+panel.app.add_url_rule("/api/workers/<wid>/code", "worker_code_v13", worker_code_v13, methods=["POST"])
+print("code v13 ready")
+
+
+def worker_code_v14(wid):
+    from flask import request, jsonify
+    body = request.get_json(silent=True) or {}
+    code = str(body.get("code") or "").strip()
+    password = str(body.get("password") or "")
+    async def run():
+        workers = panel.load_json(panel.DATA / "workers.json", [])
+        w = next((x for x in workers if x.get("id") == wid), None)
+        if not w:
+            return {"status": "error", "message": "没有这个水军"}
+        h = w.get("phone_code_hash") or ""
+        phone = str(w.get("phone") or "").replace(" ", "")
+        pwd = password or w.get("password") or ""
+        client, info = await panel._create_client(w)
+        await client.connect()
+        if await client.is_user_authorized():
+            me = await client.get_me()
+            w["status"] = "online"
+            w["status_text"] = "在线"
+            panel.save_json(panel.DATA / "workers.json", workers)
+            return {"status": "ok", "message": "已登录 " + str(me.phone)}
+        if not h:
+            return {"status": "error", "message": "没有hash，先点启动"}
+        try:
+            await client.sign_in(phone, code, phone_code_hash=h)
+        except Exception as e:
+            if "password" not in str(e).lower() and "Two-steps" not in str(e):
+                return {"status": "error", "message": str(e)}
+            if not pwd:
+                return {"status": "error", "message": "请在这一行填写2FA密码后再提交"}
+            try:
+                await client.sign_in(password=pwd)
+            except Exception as e2:
+                return {"status": "error", "message": "2FA密码不对: " + str(e2)}
+        me = await client.get_me()
+        w["status"] = "online"
+        w["status_text"] = "在线"
+        if pwd:
+            w["password"] = pwd
+        panel.save_json(panel.DATA / "workers.json", workers)
+        return {"status": "ok", "message": "已登录 " + str(me.phone)}
+    try:
+        return jsonify(panel.run_async(run(), timeout=90))
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)})
+panel.app.add_url_rule("/api/workers/<wid>/code", "worker_code_v14", worker_code_v14, methods=["POST"])
+print("code v14 ready")
+
+
+def worker_code_v16(wid):
+    from flask import request, jsonify
+    body = request.get_json(silent=True) or {}
+    code = str(body.get("code") or "").strip()
+    password = str(body.get("password") or "")
+    async def run():
+        workers = panel.load_json(panel.DATA / "workers.json", [])
+        w = next((x for x in workers if x.get("id") == wid), None)
+        if not w:
+            return {"status": "error", "message": "没有这个水军"}
+        phone = str(w.get("phone") or "").replace(" ", "")
+        h = w.get("phone_code_hash") or ""
+        pwd = password or w.get("password") or ""
+        client, info = await panel._create_client(w)
+        await client.connect()
+        if await client.is_user_authorized():
+            me = await client.get_me()
+            w["status"] = "online"
+            w["status_text"] = "在线"
+            panel.save_json(panel.DATA / "workers.json", workers)
+            return {"status": "ok", "message": "已登录 " + str(me.phone)}
+        if not pwd:
+            return {"status": "error", "message": "2FA密码是空的"}
+        try:
+            if code and h:
+                await client.sign_in(phone, code, phone_code_hash=h)
+        except Exception as e:
+            if "password" not in str(e).lower() and "Two-steps" not in str(e):
+                return {"status": "error", "message": str(e)}
+        try:
+            await client.sign_in(password=pwd)
+        except Exception as e2:
+            return {"status": "error", "message": "2FA密码不对: " + str(e2)}
+        me = await client.get_me()
+        w["status"] = "online"
+        w["status_text"] = "在线"
+        w["password"] = pwd
+        panel.save_json(panel.DATA / "workers.json", workers)
+        return {"status": "ok", "message": "已登录 " + str(me.phone)}
+    try:
+        return jsonify(panel.run_async(run(), timeout=90))
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)})
+panel.app.add_url_rule("/api/workers/<wid>/code2", "worker_code_v16", worker_code_v16, methods=["POST"])
+print("code2 ready")
+
+
+def overview_keep():
+    from flask import jsonify
+    workers = panel.load_json(panel.DATA / "workers.json", [])
+    groups = panel.load_json(panel.DATA / "groups.json", [])
+    apis = panel.load_json(panel.DATA / "api_pool.json", [])
+    ips = panel.load_json(panel.DATA / "ip_pool.json", [])
+    bots = panel.load_json(panel.DATA / "bots.json", [])
+    stats = panel.load_json(panel.DATA / "stats.json", {})
+    return jsonify({
+        "status": "ok",
+        "workers": workers,
+        "groups": groups,
+        "apis": apis,
+        "ips": ips,
+        "bots": bots,
+        "stats": {
+            "workers": len(workers),
+            "online_workers": sum(1 for x in workers if x.get("status") == "online"),
+            "groups": len(groups),
+            "running_groups": sum(1 for x in groups if x.get("enabled", True)),
+            "apis": len(apis),
+            "ips": len(ips),
+            "forwarded": stats.get("forwarded", 0) if isinstance(stats, dict) else 0,
+        },
+    })
+panel.app.view_functions["api_overview"] = overview_keep
+panel.app.view_functions["overview"] = overview_keep
+print("overview keep")
+
+
+def worker_slots_v19():
+    from flask import jsonify
+    from pathlib import Path
+    p = Path("data/worker_slots.json")
+    if not p.exists():
+        return jsonify({"active": [], "standby": [], "cap": 10})
+    return jsonify(json.loads(p.read_text(encoding="utf-8")))
+panel.app.add_url_rule("/api/worker-slots", "worker_slots_v19", worker_slots_v19, methods=["GET"])
+print("slots ready")
+
+
+def bots_list_v20():
+    from flask import jsonify
+    return jsonify({"ok": True, "bots": panel.load_json(panel.DATA / "bots.json", [])})
+panel.app.add_url_rule("/api/botlist", "bots_list_v20", bots_list_v20, methods=["GET"])
+print("botlist ready")
+
+
+@panel.app.after_request
+def nocache_v21(resp):
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    resp.headers["Pragma"] = "no-cache"
+    return resp
+print("nocache v21")
+
+def bots_add46():
+    from flask import request, jsonify
+    data = request.get_json(silent=True) or {}
+    token = (data.get("token") or "").strip()
+    remark = (data.get("remark") or "").strip() or "bot"
+    if ":" not in token:
+        return jsonify({"status":"error","message":"Token格式不对"})
+    bots = panel.load_json(panel.DATA/"bots.json", [])
+    if any(b.get("token") == token for b in bots):
+        return jsonify({"status":"error","message":"这个Bot已存在"})
+    bots.append({"id": panel.new_id("bot_"), "token": token, "remark": remark, "created_at": panel.now_str()})
+    panel.save_json(panel.DATA/"bots.json", bots)
+    return jsonify({"status":"ok","message":"Bot已添加","bots":bots})
+panel.app.add_url_rule("/api/bots/add46", "bots_add46", bots_add46, methods=["POST"])
+print("bots-add46 ready")
+
+def bots_del46():
+    from flask import request, jsonify
+    data = request.get_json(silent=True) or {}
+    bid = (data.get("id") or "").strip()
+    bots = panel.load_json(panel.DATA/"bots.json", [])
+    n = len(bots)
+    bots = [b for b in bots if b.get("id") != bid]
+    panel.save_json(panel.DATA/"bots.json", bots)
+    return jsonify({"status":"ok","removed": n-len(bots), "count":len(bots)})
+
+panel.app.add_url_rule("/api/bots/del46", "bots_del46", bots_del46, methods=["POST"])
+print("bots-del46 ready")
+def target_add52():
+    from flask import request, jsonify
+    data = request.get_json(silent=True) or {}
+    user = (data.get("username") or "").strip()
+    remark = (data.get("remark") or "").strip()
+    bot_id = (data.get("bot_id") or "").strip()
+    if "t.me/" in user:
+        user = user.split("t.me/")[-1].split("/")[0].split("?")[0]
+    user = user if user.startswith("@") else "@"+user.lstrip("@")
+    if len(user) < 3:
+        return jsonify({"status":"error","message":"链接不对"})
+    gs = panel.load_json(panel.GROUP_FILE, [])
+    if not gs:
+        return jsonify({"status":"error","message":"没有转发组"})
+    g = gs[0]
+    targets = g.setdefault("targets", [])
+    if any((x.get("username") or "").lower()==user.lower() for x in targets):
+        return jsonify({"status":"ok","message":"已在组里","targets":targets})
+    targets.append({"id": panel.new_id("t_"), "username": user, "remark": remark, "bot_id": bot_id})
+    panel.save_json(panel.GROUP_FILE, gs)
+    return jsonify({"status":"ok","message":"已进组","targets":targets})
+panel.app.add_url_rule("/api/targets/add52", "target_add52", target_add52, methods=["POST"])
+print("target-add52 ready")
+def group_add53():
+    from flask import request, jsonify
+    data = request.get_json(silent=True) or {}
+    source = (data.get("source") or "").strip()
+    remark = (data.get("source_remark") or "").strip()
+    workers = data.get("worker_ids") or []
+    if "t.me/" in source:
+        source = "t.me/" + source.split("t.me/")[-1].split("/")[0].split("?")[0]
+    if not source:
+        return jsonify({"status":"error","message":"源订阅号空"})
+    gs = panel.load_json(panel.GROUP_FILE, [])
+    if any((g.get("source") or "").lower()==source.lower() for g in gs):
+        return jsonify({"status":"ok","message":"已在面板","groups":gs})
+    gs.append({"id": panel.new_id("g_"), "source": source, "source_remark": remark, "worker_ids": workers, "targets": [], "enabled": True, "forwarded": 0})
+    panel.save_json(panel.GROUP_FILE, gs)
+    return jsonify({"status":"ok","message":"已添加到面板","count":len(gs)})
+panel.app.add_url_rule("/api/groups/add53", "group_add53", group_add53, methods=["POST"])
+print("group-add53 ready")
 if __name__ == "__main__":
     panel.start_loop()
     threading.Thread(target=_auto_loop, daemon=True).start()
@@ -538,3 +1014,148 @@ for rule in list(panel.app.url_map.iter_rules()):
         panel.app.view_functions.pop(rule.endpoint, None)
 panel.app.add_url_rule("/api/auth/status","auth_status_open",auth_status_open,methods=["GET"])
 print("auth open")
+
+
+def worker_code_v1(wid):
+    from flask import request, jsonify
+    body = request.get_json(silent=True) or {}
+    code = str(body.get("code") or "").strip()
+    password = str(body.get("password") or "pass345word")
+    if not code.isdigit():
+        return jsonify({"status":"error","message":"验证码必须是数字"})
+    async def run():
+        workers = panel.load_json(panel.DATA/"workers.json", [])
+        w = next((x for x in workers if x.get("id")==wid), None)
+        if not w:
+            return {"status":"error","message":"没有这个水军"}
+        client, info = await panel._create_client(w)
+        await client.connect()
+        phone = w.get("phone")
+        try:
+            await client.sign_in(phone, code, phone_code_hash=w.get("phone_code_hash"))
+        except Exception as e:
+            name = type(e).__name__
+            if "SessionPasswordNeeded" in name or "password" in str(e).lower():
+                await client.sign_in(password=password)
+            else:
+                return {"status":"error","message":name+" "+str(e)}
+        me = await client.get_me()
+        for x in workers:
+            if x.get("id")==wid:
+                x["status"] = "online"
+                x["status_text"] = "在线"
+        panel.save_json(panel.DATA/"workers.json", workers)
+        return {"status":"ok","message":"已登录 "+str(me.phone)}
+    try:
+        return jsonify(panel.run_async(run(), timeout=90))
+    except Exception as e:
+        return jsonify({"status":"error","message":str(e)})
+panel.app.add_url_rule("/api/workers/<wid>/code", "worker_code_v1", worker_code_v1, methods=["POST"])
+print("code route ready")
+
+# group-act v34
+def _group_stop(gid):
+    gs = panel.load_json(panel.GROUP_FILE, [])
+    for g in gs:
+        if g.get("id") == gid:
+            g["running"] = False
+    panel.save_json(panel.GROUP_FILE, gs)
+    return {"status":"ok","message":"已停止采集"}
+def _group_delete(gid):
+    gs = panel.load_json(panel.GROUP_FILE, [])
+    gs = [g for g in gs if g.get("id") != gid]
+    panel.save_json(panel.GROUP_FILE, gs)
+    return {"status":"ok","message":"已删除该组"}
+def group_stop_v34(gid):
+    return jsonify(_group_stop(gid))
+def group_delete_v34(gid):
+    return jsonify(_group_delete(gid))
+panel.app.add_url_rule("/api/groups/<gid>/stop","group_stop_v34",group_stop_v34,methods=["POST"])
+panel.app.add_url_rule("/api/groups/<gid>/delete","group_delete_v34",group_delete_v34,methods=["POST"])
+print("group-act v34")
+
+# target-del v36
+def target_delete_v36():
+    from flask import request, jsonify
+    body = request.get_json(silent=True) or {}
+    name = (body.get("username") or "").strip()
+    gs = panel.load_json(panel.GROUP_FILE, [])
+    n = 0
+    for g in gs:
+        old = g.get("targets") or []
+        g["targets"] = [t for t in old if (t.get("username") or t.get("id")) != name]
+        n += len(old) - len(g["targets"])
+    panel.save_json(panel.GROUP_FILE, gs)
+    return jsonify({"status":"ok","message":"已删除 "+name+" "+str(n)+"条"})
+panel.app.add_url_rule("/api/targets/delete","target_delete_v36",target_delete_v36,methods=["POST"])
+print("target-del v36")
+
+# target-del v37
+def target_delete_v37():
+    from flask import request, jsonify
+    body = request.get_json(silent=True) or {}
+    name = (body.get("username") or "").strip().lstrip("@")
+    path = panel.DATA / "groups.json"
+    gs = panel.load_json(path, [])
+    n = 0
+    for g in gs:
+        old = g.get("targets") or []
+        keep = []
+        for t in old:
+            u = (t.get("username") or t.get("id") or "").lstrip("@")
+            if u == name:
+                n += 1
+            else:
+                keep.append(t)
+        g["targets"] = keep
+    panel.save_json(path, gs)
+    return jsonify({"status":"ok","message":"已删除 @"+name+" "+str(n)+"条"})
+panel.app.add_url_rule("/api/targets/delete","target_delete_v37",target_delete_v37,methods=["POST"])
+print("target-del v37")
+
+# target-del v38
+def target_delete_v38():
+    from flask import request, jsonify
+    body = request.get_json(silent=True) or {}
+    name = (body.get("username") or "").strip().lstrip("@")
+    path = panel.DATA / "groups.json"
+    gs = panel.load_json(path, [])
+    n = 0
+    for g in gs:
+        old = g.get("targets") or []
+        keep = []
+        for t in old:
+            u = (t.get("username") or t.get("id") or "").lstrip("@")
+            if u == name:
+                n += 1
+            else:
+                keep.append(t)
+        g["targets"] = keep
+    panel.save_json(path, gs)
+    return jsonify({"status":"ok","message":"已删除 @"+name+" "+str(n)+"条"})
+panel.app.add_url_rule("/api/targets/delete","target_delete_v38",target_delete_v38,methods=["POST"])
+print("target-del v38")
+
+@panel.app.before_request
+def allow_add46():
+    from flask import request
+    if request.path in ("/api/bots/add46", "/api/bots/list46", "/api/bots/del46"):
+        return None
+print("auth off add46")
+
+def bots_list46():
+    from flask import jsonify
+    return jsonify({"status":"ok","bots": panel.load_json(panel.DATA/"bots.json", [])})
+panel.app.add_url_rule("/api/bots/list46", "bots_list46", bots_list46, methods=["GET"])
+print("bots-list46 ready")
+
+def bots_del46():
+    from flask import request, jsonify
+    data = request.get_json(silent=True) or {}
+    bid = (data.get("id") or "").strip()
+    bots = panel.load_json(panel.DATA/"bots.json", [])
+    bots = [b for b in bots if b.get("id") != bid]
+    panel.save_json(panel.DATA/"bots.json", bots)
+    return jsonify({"status":"ok","count":len(bots)})
+panel.app.add_url_rule("/api/bots/del46", "bots_del46", bots_del46, methods=["POST"])
+print("bots-del46 ready")

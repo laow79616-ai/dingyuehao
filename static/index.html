@@ -1336,6 +1336,583 @@ async function paintLive(){
 setInterval(paintLive, 2000);
 paintLive();
 </script>
+
+<script>
+async function paintWorkers(){
+  const box = document.getElementById("worker-list");
+  if(!box) return;
+  if(document.activeElement && (document.activeElement.id||"").indexOf("code-")===0) return;
+  const kept = {};
+  box.querySelectorAll("input[id^='code-']").forEach(el => { kept[el.id] = el.value; });
+  let ws = [];
+  try{
+    const r = await fetch("/api/overview").then(x=>x.json());
+    ws = r.workers || [];
+  }catch(e){}
+  if(!ws.length){ box.innerHTML = "<p class='muted'>暂无水军号</p>"; return; }
+  box.innerHTML = ws.map(w => {
+    const id = w.id;
+    const wait = (w.status||"") === "wait_code";
+    return `<div style="padding:10px 0;border-bottom:1px solid #244;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <b>${w.phone||""}</b> <span>${w.status_text||w.status||""}</span>
+      <button class="btn btn-primary btn-sm" type="button" onclick="rowStart('${id}')">启动</button>
+      ${wait ? `<input id="code-${id}" placeholder="5位验证码"><input class="w2fa" data-wid="${w.id}" placeholder="2FA密码" style="width:140px;margin-left:6px;" style="width:110px" autocomplete="off">
+      <button class="btn btn-success btn-sm" type="button" onclick="rowCode('${id}')">提交验证码</button>` : ""}
+      <button class="btn btn-danger btn-sm" type="button" onclick="rowDel('${id}')">删除</button>
+    </div>`;
+  }).join("");
+  Object.keys(kept).forEach(id => { const el = document.getElementById(id); if(el) el.value = kept[id]; });
+}
+async function rowStart(id){
+  const r = await fetch("/api/workers/"+id+"/start", {method:"POST"});
+  const j = await r.json().catch(()=>({message:"启动接口没通"}));
+  alert(j.message || j.status || "已点启动");
+  paintWorkers();
+}
+async function rowCode(id){
+  const code = ((document.getElementById("code-"+id)||{}).value || "").trim();
+  if(!/^\d{5}$/.test(code)){ alert("填客户端里的5位验证码"); return; }
+  const r = await fetch("/api/workers/"+id+"/code", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({code:code, password:"pass345word"})});
+  const j = await r.json().catch(()=>({message:"验证码接口没通"}));
+  alert(j.message || j.status || "已提交");
+  paintWorkers();
+}
+async function rowDel(id){
+  if(!confirm("删除这个水军号？")) return;
+  const r = await fetch("/api/workers/"+id, {method:"DELETE"});
+  const j = await r.json().catch(()=>({}));
+  alert(j.message || j.status || "已删除");
+  paintWorkers();
+}
+setInterval(paintWorkers, 8000);
+paintWorkers();
+</script>
+
+<script>
+async function addWorkerNow(){
+  const phone = (document.getElementById("w-phone")||{}).value || "";
+  const pwd = (document.getElementById("w-pass")||{}).value || "";
+  const remark = (document.getElementById("w-remark")||{}).value || "";
+  const clean = String(phone).replace(/[^\d+]/g,"");
+  if (clean.length < 8){ alert("手机号不对"); return; }
+  const r = await fetch("/api/workers", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({phone:clean, password:pwd, remark:remark})});
+  const d = await r.json().catch(()=>({status:"error", message:"接口没通"}));
+  if (d.status && d.status !== "ok"){ alert(d.message || "添加失败"); return; }
+  const box = document.getElementById("worker-rows");
+  if (box){
+    const row = document.createElement("div");
+    row.className = "worker-row";
+    row.innerHTML = `<b>${clean}</b> <span class="muted">未启动</span> <button class="btn btn-primary btn-sm" onclick="rowStart(this.closest('.worker-row').dataset.id)">启动</button>`;
+    box.appendChild(row);
+  }
+  alert("已加入列表");
+}
+document.querySelectorAll("button").forEach(b=>{
+  if ((b.textContent||"").includes("添加水军号")) b.onclick = function(e){ e.preventDefault(); addWorkerNow(); };
+});
+</script>
+
+<script>/* code v13 prompt */
+document.querySelectorAll("button").forEach(b=>{
+  if ((b.textContent||"").indexOf("提交验证码") < 0) return;
+  b.onclick = async function(e){
+    e.preventDefault();
+    const row = b.closest("div") || b.parentElement;
+    const inp = row.querySelector("input");
+    const code = inp ? inp.value.trim() : "";
+    const id = (b.getAttribute("onclick") || "").match(/w_[a-z0-9]+/);
+    const wid = b.dataset.id || (id && id[0]);
+    if (!wid){ alert("没有水军id"); return; }
+    const password = prompt("这个号如果开了2FA，把两步验证密码贴这里。没开就留空点确定") || "";
+    const r = await fetch("/api/workers/"+wid+"/code", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({code, password})});
+    const d = await r.json().catch(()=>({message:"接口没通"}));
+    alert(d.message || d.status || "完成");
+    if ((d.message||"").indexOf("已登录") >= 0) location.href = location.pathname + "?v=82";
+  };
+});
+</script>
+
+
+
+
+
+<script>
+/* submit v16 */
+document.addEventListener("click", async function(e){
+  const btn = e.target && e.target.closest ? e.target.closest("button") : null;
+  if (!btn || (btn.textContent || "").indexOf("提交验证码") < 0) return;
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  const oc = btn.getAttribute("onclick") || "";
+  const m = oc.match(/w_[a-z0-9]+/);
+  if (!m) { alert("找不到水军id"); return; }
+  const id = m[0];
+  const row = btn.parentElement || document;
+  const inputs = row.parentElement ? row.parentElement.querySelectorAll("input") : [];
+  let code = "", password = "";
+  inputs.forEach(function(inp){
+    const ph = inp.getAttribute("placeholder") || "";
+    if (ph.indexOf("验证码") >= 0) code = inp.value || "";
+    if (ph.indexOf("2FA") >= 0) password = inp.value || "";
+  });
+  const r = await fetch("/api/workers/"+id+"/code2", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({code: code.trim(), password: password})});
+  const d = await r.json().catch(function(){ return {message:"接口没通"}; });
+  alert(d.message || d.status || "完成");
+  if ((d.message || "").indexOf("已登录") >= 0) location.href = location.pathname + "?v=86";
+}, true);
+</script>
+
+<script>
+/* nojump v17 */
+(function(){
+  function typing(){
+    const el = document.activeElement;
+    if (!el) return false;
+    const tag = (el.tagName || "").toLowerCase();
+    return tag === "input" || tag === "textarea" || tag === "select";
+  }
+  const orig = window.refreshAll;
+  if (typeof orig === "function" && !orig.__v17) {
+    const wrapped = async function(){
+      if (typing()) return;
+      const y = window.scrollY;
+      await orig.apply(this, arguments);
+      window.scrollTo(0, y);
+    };
+    wrapped.__v17 = true;
+    window.refreshAll = wrapped;
+  }
+})();
+</script>
+
+<script>
+/* keepinput v18 */
+(function(){
+  const mem = {};
+  function key(inp){
+    const box = inp.closest("div") || document.body;
+    const root = box.parentElement || box;
+    const btn = root.querySelector("button[onclick*='w_']");
+    const oc = btn ? (btn.getAttribute("onclick") || "") : "";
+    const m = oc.match(/w_[a-z0-9]+/);
+    return (m ? m[0] : "x") + "|" + (inp.getAttribute("placeholder") || "");
+  }
+  function watch(inp){
+    const ph = inp.getAttribute("placeholder") || "";
+    return ph.indexOf("2FA") >= 0 || ph.indexOf("验证码") >= 0;
+  }
+  document.addEventListener("input", function(e){
+    const inp = e.target;
+    if (!inp || !watch(inp)) return;
+    mem[key(inp)] = inp.value;
+  }, true);
+  function restore(){
+    document.querySelectorAll("input").forEach(function(inp){
+      if (!watch(inp)) return;
+      const k = key(inp);
+      if (mem[k] && inp !== document.activeElement && inp.value !== mem[k]) inp.value = mem[k];
+      if (mem[k] && inp === document.activeElement && inp.value === "") inp.value = mem[k];
+    });
+  }
+  new MutationObserver(restore).observe(document.documentElement, {childList:true, subtree:true});
+  setInterval(restore, 300);
+  const orig = window.refreshAll;
+  if (typeof orig === "function" && !orig.__v18) {
+    const wrapped = async function(){
+      const el = document.activeElement;
+      if (el && el.tagName === "INPUT" && watch(el)) return;
+      const y = window.scrollY;
+      await orig.apply(this, arguments);
+      window.scrollTo(0, y);
+      restore();
+    };
+    wrapped.__v18 = true;
+    window.refreshAll = wrapped;
+  }
+})();
+</script>
+
+
+
+
+
+
+
+
+
+
+
+<script>
+/* botlist v25 */
+window.__botPick = window.__botPick || 1;
+async function paintBots(){
+  try {
+    const r = await fetch("/api/botlist");
+    const d = await r.json();
+    const bots = d.bots || [];
+    const groups = [];
+    for (let i = 0; i < bots.length; i += 10) groups.push(bots.slice(i, i + 10));
+    if (!groups.length) groups.push([]);
+    if (window.__botPick > groups.length) window.__botPick = 1;
+    const addBtn = Array.from(document.querySelectorAll("button")).find(b => (b.textContent || "").indexOf("添加Bot") >= 0);
+    const form = addBtn ? (addBtn.closest(".card") || addBtn.parentElement.parentElement) : null;
+    let box = document.getElementById("saved-bot-list");
+    if (!box) {
+      box = document.createElement("div");
+      box.id = "saved-bot-list";
+      box.style.marginTop = "16px";
+      if (form && form.parentElement) form.parentElement.insertBefore(box, form.nextSibling);
+      else document.body.appendChild(box);
+    }
+    const left = groups.map((g, idx) => {
+      const n = idx + 1;
+      const on = n === window.__botPick;
+      return `<div onclick="window.__botPick=${n};paintBots();" style="padding:10px 12px;cursor:pointer;border-bottom:1px solid #163;background:${on ? "#123" : "transparent"};">${on ? "● " : ""}第${n}组 <span class="muted">${g.length}/10</span></div>`;
+    }).join("");
+    const cur = groups[window.__botPick - 1] || [];
+    const right = cur.map(b => `<div style="display:flex;justify-content:space-between;gap:12px;padding:8px 12px;border-bottom:1px solid #163;"><span>${b.remark || "Bot"}</span><span class="muted">${b.id}</span></div>`).join("") || `<div class="muted" style="padding:12px;">这一组还没有</div>`;
+    box.innerHTML = `<div class="name" style="margin-bottom:8px;">发布机器人组列</div>
+      <div style="display:flex;border:1px solid #1f8f4a;border-radius:8px;overflow:hidden;min-height:280px;">
+        <div style="width:140px;min-width:140px;border-right:1px solid #1f8f4a;">${left}</div>
+        <div style="flex:1;"><div style="padding:8px 12px;border-bottom:1px solid #1f8f4a;">第${window.__botPick}组 · 目标 ${cur.length}</div>${right}</div>
+      </div>`;
+  } catch (e) {}
+}
+setInterval(paintBots, 4000);
+paintBots();
+</script>
+
+<script>
+/* targetbot v26 */
+window.__pickBot = window.__pickBot || null;
+window.__pickGroup = window.__pickGroup || 1;
+async function openBotPicker(){
+  const r = await fetch("/api/botlist");
+  const d = await r.json();
+  const bots = d.bots || [];
+  const groups = [];
+  for (let i = 0; i < bots.length; i += 10) groups.push(bots.slice(i, i + 10));
+  if (!groups.length) groups.push([]);
+  if (window.__pickGroup > groups.length) window.__pickGroup = 1;
+  let box = document.getElementById("target-bot-picker");
+  if (!box) {
+    box = document.createElement("div");
+    box.id = "target-bot-picker";
+    box.style.marginTop = "12px";
+    const host = document.getElementById("pick-bot-btn");
+    if (host && host.parentElement) host.parentElement.appendChild(box);
+    else document.body.appendChild(box);
+  }
+  const left = groups.map((g, idx) => {
+    const n = idx + 1;
+    const on = n === window.__pickGroup;
+    return `<div onclick="window.__pickGroup=${n};openBotPicker();" style="padding:10px 12px;cursor:pointer;border-bottom:1px solid #163;background:${on ? "#123" : "transparent"};">${on ? "● " : ""}第${n}组 <span class="muted">${g.length}/10</span></div>`;
+  }).join("");
+  const cur = groups[window.__pickGroup - 1] || [];
+  const right = cur.map(b => `<div onclick="chooseBot('${b.id}','${(b.remark||"Bot").replace(/'/g,"")}')" style="display:flex;justify-content:space-between;gap:12px;padding:8px 12px;border-bottom:1px solid #163;cursor:pointer;"><span>${b.remark || "Bot"}</span><span class="muted">${b.id}</span></div>`).join("") || `<div class="muted" style="padding:12px;">这一组还没有</div>`;
+  const chosen = window.__pickBot ? `已指定 ${window.__pickBot.remark}` : "还没有指定";
+  box.innerHTML = `<div class="name" style="margin-bottom:8px;">选择指定 Bot · ${chosen}</div>
+    <div style="display:flex;border:1px solid #1f8f4a;border-radius:8px;overflow:hidden;min-height:280px;">
+      <div style="width:140px;min-width:140px;border-right:1px solid #1f8f4a;">${left}</div>
+      <div style="flex:1;"><div style="padding:8px 12px;border-bottom:1px solid #1f8f4a;">第${window.__pickGroup}组 · 点右边一条指定</div>${right}</div>
+    </div>`;
+}
+function chooseBot(id, remark){
+  window.__pickBot = {id: id, remark: remark};
+  const lab = document.getElementById("picked-bot-label");
+  if (lab) lab.textContent = "已指定 " + remark;
+  openBotPicker();
+}
+function mountPick(){
+  if (document.getElementById("pick-bot-btn")) return;
+  const inputs = Array.from(document.querySelectorAll("input"));
+  const link = inputs.find(x => (x.placeholder || "").indexOf("t.me") >= 0 || (x.placeholder || "").indexOf("订阅号") >= 0);
+  if (!link) return;
+  const card = link.closest(".card") || link.parentElement;
+  const row = document.createElement("div");
+  row.style.marginTop = "10px";
+  row.innerHTML = `<button class="btn btn-primary" id="pick-bot-btn" type="button">选择指定Bot</button> <span id="picked-bot-label" class="muted">还没有指定</span>`;
+  card.appendChild(row);
+  document.getElementById("pick-bot-btn").onclick = openBotPicker;
+}
+setInterval(mountPick, 1500);
+mountPick();
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<script>
+/* newgroup workers v33 */
+(function(){
+  const _fetch = window.fetch;
+  window.fetch = function(url, opt){
+    try {
+      if (opt && opt.method === "POST" && String(url).indexOf("/api/groups") >= 0 && String(url).indexOf("/api/groups/") < 0) {
+        const sel = document.getElementById("new-worker-ids");
+        if (sel && opt.body) {
+          const body = JSON.parse(opt.body);
+          body.worker_ids = Array.from(sel.selectedOptions).map(o => o.value).filter(Boolean);
+          opt = Object.assign({}, opt, {body: JSON.stringify(body)});
+        }
+      }
+    } catch (e) {}
+    return _fetch.call(this, url, opt);
+  };
+  async function mount(){
+    if (document.getElementById("new-worker-pick")) return;
+    const btn = Array.from(document.querySelectorAll("button")).find(b => (b.textContent || "").replace(/\s/g,"").indexOf("新增转发组") >= 0);
+    if (!btn) return;
+    let workers = [];
+    try {
+      const d = await fetch("/api/overview").then(x => x.json());
+      workers = (d.workers || []).filter(w => w.status === "online");
+    } catch (e) {}
+    const box = document.createElement("div");
+    box.id = "new-worker-pick";
+    box.style.margin = "0 12px 0 0";
+    box.innerHTML = `<div class="muted" style="margin-bottom:6px;">指定水军号，可多选</div>
+      <select id="new-worker-ids" multiple size="4" style="min-width:240px;background:#000;color:#fff;border:1px solid #1f8f4a;border-radius:8px;padding:6px;">
+        ${workers.map(w => `<option value="${w.id}">${w.phone || w.id}</option>`).join("") || `<option value="">没有在线水军</option>`}
+      </select>`;
+    const host = btn.parentElement;
+    host.parentElement.insertBefore(box, host);
+  }
+  setInterval(mount, 1500);
+  mount();
+})();
+</script>
+
+<script>
+/* group actions v34 */
+async function groupAct(id, act){
+  const url = act === "start" ? "/api/groups/"+id+"/collect-now" : "/api/groups/"+id+"/"+act;
+  const r = await fetch(url, {method:"POST", headers:{"Content-Type":"application/json"}, body:"{}"});
+  let msg = act;
+  try { const d = await r.json(); msg = d.message || d.status || act; } catch (e) {}
+  alert(msg);
+  if (act === "delete") location.reload();
+}
+function mountActs(){
+  document.querySelectorAll("[id^='gbody-'], .card, .group-card").forEach(card => {
+    if (card.dataset.acts) return;
+    const m = (card.id || "").match(/gbody-(.+)/) || (card.innerHTML || "").match(/delGroup\('([^']+)'\)/) || (card.innerHTML || "").match(/collectNow\('([^']+)'\)/);
+    if (!m) return;
+    const id = m[1];
+    card.dataset.acts = "1";
+    const bar = document.createElement("div");
+    bar.style.margin = "8px 0";
+    bar.innerHTML = `<button class="btn btn-success btn-sm" type="button" onclick="groupAct('${id}','start')">开始采集</button>
+      <button class="btn btn-default btn-sm" type="button" onclick="groupAct('${id}','stop')">停止采集</button>
+      <button class="btn btn-danger btn-sm" type="button" onclick="if(confirm('删除该组？'))groupAct('${id}','delete')">删除该组</button>`;
+    card.appendChild(bar);
+  });
+}
+setInterval(mountActs, 2000);
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<script>
+/* hidebottom v44 */
+function hideBottom(){
+  const slot = document.getElementById("slot10");
+  document.querySelectorAll("div").forEach(el => {
+    if (!slot) return;
+    if (el === slot || el.contains(slot) || slot.contains(el)) return;
+    const tx = el.innerText || "";
+    if (tx.indexOf("@heitaodj") >= 0 && tx.indexOf("水军 +") >= 0 && tx.indexOf("目标") >= 0 && tx.length < 1200) el.style.display = "none";
+  });
+}
+hideBottom();
+setTimeout(hideBottom, 500);
+setTimeout(hideBottom, 1500);
+</script>
+
+<script>
+/* slot10 v45 */
+window.__gPick = window.__gPick || 1;
+async function paint10(){
+  const d = await fetch("/api/overview").then(x => x.json());
+  const workers = (d.workers || []).filter(w => w.status === "online");
+  const targets = [];
+  (d.groups || []).forEach(g => (g.targets || []).forEach(t => targets.push(t)));
+  const bots = d.bots || [];
+  const title = Array.from(document.querySelectorAll("div,h3,h2")).find(x => (x.textContent || "").trim() === "水军号组列");
+  if (!title) return;
+  let box = document.getElementById("slot10");
+  if (!box) {
+    box = document.createElement("div");
+    box.id = "slot10";
+    title.parentElement.insertBefore(box, title.nextSibling);
+  }
+  const left = [];
+  for (let n = 1; n <= 10; n++) {
+    const w = workers[n - 1];
+    const on = n === window.__gPick;
+    left.push(`<div data-n="${n}" style="padding:8px 10px;cursor:pointer;border-bottom:1px solid #163;background:${on ? "#123" : "transparent"}">${on ? "● " : ""}第${n}组<div class="muted">${w ? w.phone : "空"} ${w ? "已绑" : "0/10"}</div></div>`);
+  }
+  const w = workers[window.__gPick - 1];
+  const rows = window.__gPick === 1 ? targets : [];
+  const body = rows.map(t => {
+    const name = t.username || "";
+    const opts = [`<option value="">选择中文Bot</option>`].concat(bots.map(b => `<option value="${b.id}" ${t.bot_id===b.id?"selected":""}>${b.remark || "Bot"}</option>`)).join("");
+    return `<div style="display:flex;gap:8px;align-items:center;border:1px solid #1f8f4a;border-radius:8px;padding:8px;margin-bottom:8px;"><b style="flex:1">${name}</b><select style="background:#111;color:#fff;border:1px solid #1f8f4a;border-radius:6px;padding:6px 8px;">${opts}</select><button type="button" class="btn btn-danger btn-sm" data-del="${name}">删除</button></div>`;
+  }).join("") || `<div class="muted">本组还没有目标订阅号</div>`;
+  box.innerHTML = `<div style="display:flex;border:1px solid #1f8f4a;border-radius:8px;overflow:hidden;margin-bottom:12px;"><div style="width:190px;border-right:1px solid #1f8f4a;">${left.join("")}</div><div style="flex:1;padding:10px 12px;"><div style="margin-bottom:8px;">第${window.__gPick}组 · ${w ? w.phone : "空"} · 目标 ${rows.length}</div>${body}</div></div>`;
+  box.querySelectorAll("[data-n]").forEach(el => el.onclick = () => { window.__gPick = Number(el.dataset.n); paint10(); });
+  box.querySelectorAll("[data-del]").forEach(btn => btn.onclick = async (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    const r = await fetch("/api/targets/delete", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({username: btn.dataset.del})});
+    const j = await r.json().catch(() => ({}));
+    if (r.ok && j.status === "ok") paint10();
+    else alert(j.message || "删除失败");
+  });
+}
+paint10();
+</script>
+
+
+
+
+
+
+
+
+
+<script>
+/* botdel v50 */
+async function delBot48(id, el){
+  const r = await fetch("/api/bots/del46", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({id})});
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || j.status !== "ok") { alert(j.message || "删除失败"); return; }
+  const row = el.closest("tr") || el.parentElement;
+  if (row) row.remove();
+}
+function armBotDel(){
+  document.querySelectorAll("td,div,span").forEach(node => {
+    if (node.children.length) return;
+    const m = (node.textContent || "").trim().match(/^bot_[0-9a-f]{6,}$/);
+    if (!m) return;
+    const row = node.closest("tr") || node.parentElement;
+    if (!row || row.querySelector("[data-botdel]")) return;
+    const btn = document.createElement("button");
+    btn.className = "btn btn-danger btn-sm";
+    btn.textContent = "删除";
+    btn.style.marginLeft = "10px";
+    btn.dataset.botdel = m[0];
+    btn.onclick = ev => { ev.preventDefault(); ev.stopPropagation(); delBot48(m[0], btn); };
+    node.appendChild(btn);
+  });
+}
+armBotDel();
+new MutationObserver(() => armBotDel()).observe(document.body, {childList:true, subtree:true});
+</script>
+
+<script>
+/* botadd v51 */
+async function addBot51(){
+  const inputs = Array.from(document.querySelectorAll("input"));
+  const tokenEl = inputs.find(el => (el.placeholder||"").includes("123456")) || inputs[0];
+  const remarkEl = inputs.find(el => (el.placeholder||"").includes("快约")) || inputs[1];
+  const token = (tokenEl && tokenEl.value || "").trim();
+  const remark = (remarkEl && remarkEl.value || "").trim();
+  if (!token.includes(":")) { alert("Token 不完整"); return; }
+  const r = await fetch("/api/bots/add46", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({token, remark})});
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || j.status !== "ok") { alert(j.message || "添加失败"); return; }
+  if (tokenEl) tokenEl.value = "";
+  if (remarkEl) remarkEl.value = "";
+  const box = document.getElementById("bot-saved-51") || document.createElement("div");
+  box.id = "bot-saved-51";
+  box.style.margin = "12px 0";
+  const bots = j.bots || [];
+  box.innerHTML = "<div class='muted'>已保存 Bot "+bots.length+" 个</div>" + bots.map(b => "<div style='border:1px solid #1f8f4e;border-radius:8px;padding:8px 12px;margin-top:6px;display:flex;justify-content:space-between' data-botdel='"+b.id+"'><span>"+(b.remark||"Bot")+"</span><span>"+b.id+" <button class='btn btn-danger btn-sm' onclick=\"delBot48('"+b.id+"', this)\">删除</button></span></div>").join("");
+  const title = Array.from(document.querySelectorAll("div,h2,h3")).find(el => (el.textContent||"").trim() === "发布机器人组列");
+  if (title && title.parentElement) title.parentElement.insertBefore(box, title);
+  else document.body.appendChild(box);
+}
+document.querySelectorAll("button").forEach(btn => {
+  if ((btn.textContent||"").trim() === "添加Bot" && !btn.dataset.bound51) {
+    btn.dataset.bound51 = "1";
+    btn.addEventListener("click", ev => { ev.preventDefault(); ev.stopPropagation(); addBot51(); }, true);
+  }
+});
+</script>
+
+<script>
+/* save52 */
+async function save52(){
+  const inputs = Array.from(document.querySelectorAll("input"));
+  const nameEl = inputs.find(el => (el.value||"").includes("|") || (el.placeholder||"").includes("名称")) || inputs[0];
+  const linkEl = inputs.find(el => (el.value||"").includes("t.me") || (el.placeholder||"").includes("http")) || inputs[1];
+  const remark = (nameEl && nameEl.value || "").trim();
+  const username = (linkEl && linkEl.value || "").trim();
+  const sel = document.querySelector("[data-botdel]");
+  const bot_id = sel ? sel.getAttribute("data-botdel") : "";
+  const picked = Array.from(document.querySelectorAll("tr")).find(tr => (tr.textContent||"").includes(remark));
+  const bid = picked ? ((picked.textContent.match(/bot_[0-9a-f]{6,}/)||[])[0] || bot_id) : bot_id;
+  const r = await fetch("/api/targets/add52", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({username, remark, bot_id: bid})});
+  const j = await r.json().catch(()=>({}));
+  if (!r.ok || j.status !== "ok") { alert(j.message || "进组失败"); return; }
+  if (nameEl) nameEl.value = "";
+  if (linkEl) linkEl.value = "";
+  alert("已进组 " + (j.targets||[]).length + " 条");
+}
+document.querySelectorAll("button").forEach(btn => {
+  if ((btn.textContent||"").includes("保存并自动进组") && !btn.dataset.s52) {
+    btn.dataset.s52 = "1";
+    btn.addEventListener("click", ev => { ev.preventDefault(); ev.stopPropagation(); save52(); }, true);
+  }
+});
+</script>
+
+<script>
+/* add53 */
+async function addGroup53(){
+  const inputs = Array.from(document.querySelectorAll("input"));
+  const src = inputs.find(el => (el.value||"").includes("t.me") || (el.placeholder||"").includes("username"));
+  const remark = inputs.find(el => el !== src && (el.value||"").trim());
+  const selected = Array.from(document.querySelectorAll("option:checked, .selected, [aria-selected='true']")).map(el => (el.textContent||"").trim()).filter(x => x.startsWith("+"));
+  const r = await fetch("/api/groups/add53", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({source:(src&&src.value||"").trim(), source_remark:(remark&&remark.value||"").trim(), worker_ids:selected})});
+  const j = await r.json().catch(()=>({}));
+  if (!r.ok || j.status !== "ok") { alert(j.message || "添加失败"); return; }
+  if (src) src.value = "";
+  if (remark) remark.value = "";
+  alert(j.message + "，共 " + (j.count || "") + " 组");
+  location.href = location.pathname + "?v=53";
+}
+document.querySelectorAll("button").forEach(btn => {
+  if ((btn.textContent||"").trim() === "新增转发组" && !btn.dataset.a53) {
+    btn.dataset.a53 = "1";
+    btn.addEventListener("click", ev => { ev.preventDefault(); ev.stopPropagation(); addGroup53(); }, true);
+  }
+});
+</script>
 </body>
 </html>
 
