@@ -289,7 +289,9 @@ def release_cooled():
             changed = True
     if changed:
         panel.save_json(panel.DATA/"workers.json", workers)
+
 print("send-loop ready")
+
 
 import threading
 def _auto_loop():
