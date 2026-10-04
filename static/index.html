@@ -1205,7 +1205,8 @@ async function delTargetRow(gid, tid){
     const ws = d.workers||[];
     const bots = d.bots||[];
     const box = document.getElementById("worker-cols");
-    if(box){
+    if(box && window.paintSlot20){ paintSlot20(); }
+    if(false){
       box.innerHTML = gs.map(function(g){
         var w = ws.find(function(x){ return x.id===g.worker_id; });
         var rows = (g.targets||[]).map(function(t){
@@ -1269,7 +1270,7 @@ async function fillStats_old(){
       }).join('');
     }).join("") || '<div style="color:#94a3b8">还没有转发组</div>';
     const box = document.getElementById("worker-cols");
-    if(box) box.innerHTML = ghtml;
+    if(box && window.paintSlot20) paintSlot20();
     putAfter("已保存代理列表", (d.ips||[]).map(x=>'<div style="padding:6px 0;border-bottom:1px solid #333">'+(x.display||x.host||x.id)+'</div>').join("") || '<div style="color:#94a3b8">没有代理</div>');
     putAfter("已保存 API 列表", (d.apis||[]).map(x=>'<div style="padding:6px 0;border-bottom:1px solid #333">'+(x.api_id||x.id)+'</div>').join("") || '<div style="color:#94a3b8">没有 API</div>');
     putAfter("固定发布 Bot", (d.bots||[]).map(x=>'<div style="padding:6px 0;border-bottom:1px solid #333">'+(x.remark||x.id)+'</div>').join("") || '<div style="color:#94a3b8">没有 Bot</div>');
@@ -1351,7 +1352,8 @@ async function paintLive(){
     }
     if(!box) return;
     const gs=d.groups||[], ws=d.workers||[], bots=d.bots||[];
-    box.innerHTML = gs.map(function(g){
+    if(window.paintSlot20) paintSlot20();
+    if(false) box.innerHTML = gs.map(function(g){
       var w=ws.find(function(x){ return x.id===g.worker_id; });
       var rows=(g.targets||[]).map(function(t){
         var uname=(t.username||"").replace(/^@/,"");
@@ -2107,6 +2109,7 @@ renderGroups58();
   apply();
 })();
 </script>
+<script src="/static/slot20.js?v=3"></script>
 </body>
 </html>
 
@@ -2197,4 +2200,34 @@ async function restoreBot58(){
   });
 }
 setInterval(()=>{ bindBot58(); restoreBot58(); }, 800);
+</script>
+
+<script>
+/* slot20 v1 */
+window.__slot20 = window.__slot20 || 1;
+async function paintSlot20(){
+  const d = await fetch("/api/overview").then(x => x.json());
+  const g = (d.groups || [])[0] || {};
+  const targets = g.targets || [];
+  const bots = d.bots || [];
+  const workers = d.workers || [];
+  const w = workers.find(x => x.id === g.worker_id) || workers[0] || {};
+  const box = document.getElementById("worker-cols");
+  if (!box) return;
+  const left = [];
+  for (let n = 1; n <= 20; n++) {
+    const cnt = targets.filter(x => Number(x.slot || 0) === n).length || Math.max(0, Math.min(10, targets.length - (n - 1) * 10));
+    const on = n === window.__slot20;
+    left.push(`<div data-s20="${n}" style="padding:8px 10px;cursor:pointer;border-bottom:1px solid #163;background:${on ? "#123" : "transparent"}">${on ? "● " : ""}第${n}组<div class="muted">${cnt}/10</div></div>`);
+  }
+  const rows = targets.filter(x => Number(x.slot || (targets.indexOf(x) // 10 + 1)) === window.__slot20);
+  const body = rows.map(tg => {
+    const name = tg.username || "";
+    const opts = [`<option value="">选择中文Bot</option>`].concat(bots.map(b => `<option value="${b.id}" ${tg.bot_id===b.id?"selected":""}>${b.remark || "Bot"}</option>`)).join("");
+    return `<div style="display:flex;gap:8px;align-items:center;border-bottom:1px solid #163;padding:8px 12px;"><b style="flex:1">${name}</b><select style="background:#111;color:#fff;border:1px solid #1f8f4a;border-radius:6px;padding:6px 8px;min-width:240px;">${opts}</select><button type="button" class="btn btn-danger btn-sm" data-del="${name}">删除</button></div>`;
+  }).join("") || `<div class="muted" style="padding:12px;">本组还没有目标</div>`;
+  box.innerHTML = `<div style="display:grid;grid-template-columns:180px 1fr;border:1px solid #22c55e;margin-top:10px;"><div style="border-right:1px solid #22c55e;max-height:640px;overflow:auto;">${left.join("")}</div><div><div style="padding:8px 12px;border-bottom:1px solid #22c55e;">${g.source || ""} · 第${window.__slot20}组 · 水军 ${w.phone || ""} · ${rows.length}/10</div>${body}</div></div>`;
+  box.querySelectorAll("[data-s20]").forEach(el => el.onclick = () => { window.__slot20 = Number(el.dataset.s20); paintSlot20(); });
+}
+paintSlot20();
 </script>
