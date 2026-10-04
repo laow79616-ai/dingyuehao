@@ -20,8 +20,32 @@ async def send_loop(gid):
     wid = g.get("worker_id")
     if wid not in panel._clients:
         await panel._start_worker(wid)
-    if not wid:
-        wid = next(iter(panel._clients), "")
+    if not wid or wid not in panel._clients:
+        import json as _json
+        from pathlib import Path as _P
+        _ws = _json.loads(_P("data/workers.json").read_text(encoding="utf-8"))
+        _apis = _json.loads(_P("data/api_pool.json").read_text(encoding="utf-8"))
+        _ips = _json.loads(_P("data/ip_pool.json").read_text(encoding="utf-8"))
+        _pick = next((w for w in _ws if w.get("status") in ("online","running") and w.get("api_id") and (_P("sessions")/(w["id"]+".session")).exists()), None)
+        if not _pick:
+            return {"status":"error","message":"没有在线水军"}
+        wid = _pick["id"]
+        _api = next((a for a in _apis if str(a.get("api_id"))==str(_pick.get("api_id"))), _apis[0])
+        _ip = next((x for x in _ips if x.get("id")==_pick.get("ip_id")), _ips[0] if _ips else None)
+        _proxy = None
+        if _ip:
+            import socks as _socks
+            _proxy = (_socks.SOCKS5, _ip["host"], int(_ip["port"]), True, _ip.get("username"), _ip.get("password"))
+        if wid in panel._clients:
+            _c = panel._clients[wid]
+        else:
+            from telethon import TelegramClient as _TC
+            _c = _TC(str(_P("sessions")/wid), int(_api["api_id"]), _api["api_hash"], proxy=_proxy)
+            await _c.connect()
+        if not await _c.is_user_authorized():
+            return {"status":"error","message":"会话失效，请重新验证"}
+        panel._clients[wid] = _c
+        print("restored", _pick.get("phone"), flush=True)
     if not wid or wid not in panel._clients:
         return {"status":"error","message":"没有在线水军"}
     client = panel._clients[wid]
@@ -43,7 +67,8 @@ async def send_loop(gid):
         gs = panel.load_json(panel.GROUP_FILE, [])
         for x in gs:
             if x.get("id")==g.get("id"):
-                x["last_msg_id"]=newest
+                pass
+        # hold id until send ok: x["last_msg_id"]=newest
         panel.save_json(panel.GROUP_FILE, gs)
         return {"status":"ok","message":"记住最新id="+str(newest)}
     if newest <= last:
@@ -52,7 +77,8 @@ async def send_loop(gid):
     gs = panel.load_json(panel.GROUP_FILE, [])
     for x in gs:
         if x.get("id")==g.get("id"):
-            x["last_msg_id"]=newest
+            pass
+        # hold id until send ok: x["last_msg_id"]=newest
     panel.save_json(panel.GROUP_FILE, gs)
     import time
     time.sleep(30)
@@ -107,6 +133,14 @@ async def send_loop(gid):
                         media.append(item)
                         fs[key]=open(path,"rb")
                     r = requests.post("https://api.telegram.org/bot"+token+"/sendMediaGroup", data={"chat_id":chat,"media":json.dumps(media)}, files=fs, timeout=120, proxies=_proxies())
+                    print("send", chat, r.status_code, r.text[:180], flush=True)
+                    if r.ok:
+                        gs = panel.load_json(panel.GROUP_FILE, [])
+                        for x in gs:
+                            if x.get("id")==g.get("id"):
+                                x["last_msg_id"]=newest
+                                x["forwarded"]=int(x.get("forwarded") or 0)+1
+                        panel.save_json(panel.GROUP_FILE, gs)
                     for fh in fs.values():
                         fh.close()
                 data = r.json()
@@ -302,7 +336,7 @@ def _auto_loop():
             for g in panel.load_json(panel.GROUP_FILE, []):
                 if g.get("enabled") is False:
                     continue
-                print("auto start", g.get("id"), flush=True)
+                print("auto skip" if g.get("running") is False else "auto start", g.get("id"), flush=True)
                 if not _send_lock.acquire(blocking=False):
                     print("skip busy", flush=True)
                     continue
@@ -913,6 +947,139 @@ def group_add53():
     return jsonify({"status":"ok","message":"已添加到面板","count":len(gs)})
 panel.app.add_url_rule("/api/groups/add53", "group_add53", group_add53, methods=["POST"])
 print("group-add53 ready")
+def ip_add54():
+    from flask import request, jsonify
+    data = request.get_json(silent=True) or {}
+    text = (data.get("raw") or "").strip()
+    ips = panel.load_json(panel.DATA/"ip_pool.json", [])
+    added = 0
+    for line in text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if "://" in line and "@" in line:
+            kind, rest = line.split("://", 1)
+            auth, hp = rest.rsplit("@", 1)
+            user, pwd = auth.split(":", 1)
+            host, port = hp.split(":")
+        else:
+            parts = line.split(":")
+            if len(parts) != 4:
+                continue
+            host, port, user, pwd = parts
+            kind = "socks5"
+        if any(x.get("host")==host and str(x.get("port"))==str(port) for x in ips):
+            continue
+        ips.append({"id": panel.new_id("ip_"), "type": kind, "host": host, "port": int(port), "username": user, "password": pwd, "display": f"{kind}://{user}:***@{host}:{port}", "raw": line, "worker_ids": []})
+        added += 1
+    panel.save_json(panel.DATA/"ip_pool.json", ips)
+    return jsonify({"status":"ok","added":added,"count":len(ips)})
+panel.app.add_url_rule("/api/ips/add54", "ip_add54", ip_add54, methods=["POST"])
+print("ip-add54 ready")
+def ip_list54():
+    from flask import jsonify
+    ips = panel.load_json(panel.DATA/"ip_pool.json", [])
+    out = [{"id": x.get("id"), "display": x.get("display") or (str(x.get("host"))+":"+str(x.get("port")))} for x in ips]
+    return jsonify({"status":"ok","ips":out})
+panel.app.add_url_rule("/api/ips/list54", "ip_list54", ip_list54, methods=["GET"])
+print("ip-list54 ready")
+def auto_bind_ip55():
+    ips = panel.load_json(panel.DATA/"ip_pool.json", [])
+    workers = panel.load_json(panel.DATA/"workers.json", [])
+    if not ips:
+        return
+    changed = False
+    for w in workers:
+        if w.get("ip_id"):
+            continue
+        ip = min(ips, key=lambda x: len(x.get("worker_ids") or []))
+        w["ip_id"] = ip["id"]
+        ip.setdefault("worker_ids", [])
+        if w.get("id") not in ip["worker_ids"]:
+            ip["worker_ids"].append(w["id"])
+        changed = True
+    if changed:
+        panel.save_json(panel.DATA/"ip_pool.json", ips)
+        panel.save_json(panel.DATA/"workers.json", workers)
+auto_bind_ip55()
+def api_list56():
+    from flask import jsonify
+    apis = panel.load_json(panel.DATA/"api_pool.json", [])
+    out = [{"id": x.get("id"), "api_id": x.get("api_id")} for x in apis]
+    return jsonify({"status":"ok","apis":out})
+panel.app.add_url_rule("/api/apis/list56", "api_list56", api_list56, methods=["GET"])
+print("api-list56 ready")
+def api_del57(api_id):
+    from flask import jsonify
+    apis = panel.load_json(panel.DATA/"api_pool.json", [])
+    left = [x for x in apis if x.get("id") != api_id]
+    panel.save_json(panel.DATA/"api_pool.json", left)
+    return jsonify({"status":"ok","count":len(left)})
+panel.app.add_url_rule("/api/apis/del57/<api_id>", "api_del57", api_del57, methods=["POST"])
+print("api-del57 ready")
+def group_del58(gid):
+    from flask import jsonify
+    gs = panel.load_json(panel.DATA/"groups.json", [])
+    left = [g for g in gs if g.get("id") != gid]
+    panel.save_json(panel.DATA/"groups.json", left)
+    return jsonify({"status":"ok","count":len(left)})
+def groups_list58():
+    from flask import jsonify
+    gs = panel.load_json(panel.DATA/"groups.json", [])
+    out = [{"id": g.get("id"), "source": g.get("source"), "remark": g.get("source_remark") or "", "targets": len(g.get("targets") or []), "worker_id": g.get("worker_id") or "", "running": g.get("running", True), "target_list": [{"username": t.get("username"), "bot_id": t.get("bot_id") or ""} for t in (g.get("targets") or [])]} for g in gs]
+    return jsonify({"status":"ok","groups":out})
+panel.app.add_url_rule("/api/groups/list58", "groups_list58", groups_list58, methods=["GET"])
+panel.app.add_url_rule("/api/groups/del58/<gid>", "group_del58", group_del58, methods=["POST"])
+print("group-del58 ready")
+def group_run58(gid):
+    from flask import request, jsonify
+    on = (request.get_json(silent=True) or {}).get("on")
+    gs = panel.load_json(panel.DATA/"groups.json", [])
+    for g in gs:
+        if g.get("id") == gid:
+            g["running"] = bool(on)
+    panel.save_json(panel.DATA/"groups.json", gs)
+    return jsonify({"status":"ok","running":bool(on)})
+panel.app.add_url_rule("/api/groups/run58/<gid>", "group_run58", group_run58, methods=["POST"])
+print("run58 ready")
+def target58(gid):
+    from flask import request, jsonify
+    body = request.get_json(silent=True) or {}
+    name = (body.get("username") or "").strip()
+    if not name:
+        return jsonify({"status":"error","message":"empty"})
+    if not name.startswith("@") and "t.me/" not in name:
+        name = "@"+name
+    gs = panel.load_json(panel.DATA/"groups.json", [])
+    for g in gs:
+        if g.get("id") == gid:
+            g.setdefault("targets", []).append({"id": panel.new_id("t_"), "username": name, "remark": name, "bot_id": ""})
+    panel.save_json(panel.DATA/"groups.json", gs)
+    return jsonify({"status":"ok"})
+panel.app.add_url_rule("/api/groups/target58/<gid>", "target58", target58, methods=["POST"])
+print("target58 ready")
+def savebot58():
+    from flask import request, jsonify
+    body = request.get_json(force=True, silent=True) or {}
+    username = (body.get("username") or "").strip()
+    bot_id = body.get("bot_id") or ""
+    remark = body.get("remark") or ""
+    slots = panel.load_json(panel.DATA/"worker_slots.json", {"slots": []})
+    hit = 0
+    for s in slots.get("slots") or []:
+        for tg in s.get("targets") or []:
+            if (tg.get("username") or tg.get("name")) == username:
+                tg["bot_id"] = bot_id
+                tg["bot_remark"] = remark
+                hit += 1
+    panel.save_json(panel.DATA/"worker_slots.json", slots)
+    return jsonify({"status":"ok","saved":hit})
+def slots58():
+    from flask import jsonify
+    return jsonify(panel.load_json(panel.DATA/"worker_slots.json", {"slots": []}))
+panel.app.add_url_rule("/api/slots/savebot58","savebot58",savebot58,methods=["POST"])
+panel.app.add_url_rule("/api/slots58","slots58",slots58,methods=["GET"])
+print("savebot58 ready")
 if __name__ == "__main__":
     panel.start_loop()
     threading.Thread(target=_auto_loop, daemon=True).start()

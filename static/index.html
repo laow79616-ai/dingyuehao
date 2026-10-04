@@ -1,6 +1,14 @@
 ﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
+<style id="font58">
+body, button, input, select, textarea, label, .muted, .name, .detail { font-size: 16px !important; }
+h1, .title { font-size: 22px !important; }
+.stat .num { font-size: 28px !important; }
+</style>
+
+
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TG 订阅转发 Pro</title>
@@ -264,6 +272,24 @@ table td:last-child{margin-top:8px}
         <!-- 订阅转发：1源 + 多目标 = 一组 -->
         <div class="tab-content active" id="tab-forward" >
             <div class="section-title">新建转发组（1 个源订阅 → 多个目标订阅）</div>
+<div id="run58" style="margin:10px 0 16px">
+  <button class="btn btn-success" onclick="run58(true)">启动转发</button>
+  <button class="btn btn-default" onclick="run58(false)" style="margin-left:8px">停止转发</button>
+  <span id="run58msg" class="muted" style="margin-left:10px"></span>
+</div>
+<script>
+async function run58(on){
+  const msg = document.getElementById("run58msg");
+  msg.textContent = on ? "正在启动" : "正在停止";
+  const ov = await fetch("/api/overview").then(r=>r.json());
+  const g = (ov.groups||[])[0];
+  if(!g){ msg.textContent = "还没有转发组"; return; }
+  const url = on ? "/api/groups/"+g.id+"/start" : "/api/groups/"+g.id+"/stop";
+  const r = await fetch(url,{method:"POST"}).then(x=>x.json()).catch(()=>({message:"失败"}));
+  msg.textContent = (on?"已启动 ":"已停止 ")+(r.message||g.source||"");
+}
+</script>
+
             <p class="hint">一组 = 1 个源订阅号 + 可自主添加的多个目标订阅号。源新增后立刻可保存备注标注。水军启动后自动匹配空闲 API，按绑定 IP 登录，监听源频道新消息并转发到本组全部目标。</p>
             <div class="form-row">
                 <div class="form-group">
@@ -1913,6 +1939,163 @@ document.querySelectorAll("button").forEach(btn => {
   }
 });
 </script>
+
+<script>
+/* ip54 */
+async function saveIp54(){
+  const box = document.querySelector("textarea");
+  const raw = (box && box.value || "").trim();
+  if (!raw) { alert("先填写代理"); return; }
+  const r = await fetch("/api/ips/add54", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({raw})});
+  const j = await r.json().catch(()=>({}));
+  if (!r.ok || j.status !== "ok") { alert("保存失败"); return; }
+  if (box) box.value = "";
+  alert("已保存 " + j.added + " 条，共 " + j.count);
+  location.href = location.pathname + "?v=54";
+}
+document.querySelectorAll("button").forEach(btn => {
+  if ((btn.textContent||"").includes("保存新增代理") && !btn.dataset.ip54) {
+    btn.dataset.ip54 = "1";
+    btn.addEventListener("click", ev => { ev.preventDefault(); ev.stopPropagation(); saveIp54(); }, true);
+  }
+});
+</script>
+
+<script>
+/* iplist54 */
+async function renderIp54(){
+  const nodes = Array.from(document.querySelectorAll("body *"));
+  const title = nodes.find(el => el.childNodes.length && (el.textContent||"").trim() === "已保存代理列表");
+  if (!title) return;
+  let box = document.getElementById("ip-saved-54");
+  if (!box) {
+    box = document.createElement("div");
+    box.id = "ip-saved-54";
+    title.insertAdjacentElement("afterend", box);
+  }
+  const r = await fetch("/api/ips/list54");
+  const j = await r.json().catch(()=>({ips:[]}));
+  box.innerHTML = (j.ips||[]).map(x => "<div style='border:1px solid #1f8f4e;border-radius:8px;padding:10px 12px;margin-top:8px;color:#d7ffe8'>"+(x.display||"")+"</div>").join("") || "<div style='margin-top:8px;color:#888'>还没有代理</div>";
+}
+renderIp54();
+</script>
+
+<script>
+/* apilist56 old */
+async function renderApi56(){
+  const title = Array.from(document.querySelectorAll("body *")).find(el => el.childNodes.length && (el.textContent||"").trim() === "已保存 API 列表");
+  if (!title) return;
+  let box = document.getElementById("api-saved-56");
+  if (!box) {
+    box = document.createElement("div");
+    box.id = "api-saved-56";
+    title.insertAdjacentElement("afterend", box);
+  }
+  const r = await fetch("/api/apis/list56");
+  const j = await r.json().catch(()=>({apis:[]}));
+  box.innerHTML = (j.apis||[]).map(x => "<div style='border:1px solid #1f8f4e;border-radius:8px;padding:10px 12px;margin-top:8px;color:#d7ffe8'>"+(x.api_id||"")+" · "+(x.id||"")+"</div>").join("") || "<div style='margin-top:8px;color:#888'>还没有 API</div>";
+}
+renderApi56();
+</script>
+
+<script>
+/* apidel57 */
+async function delApi57(id){
+  if (!confirm("删除这条 API？")) return;
+  await fetch("/api/apis/del57/"+id, {method:"POST"});
+  renderApi57();
+}
+async function renderApi57(){
+  const title = Array.from(document.querySelectorAll("body *")).find(el => el.childNodes.length && (el.textContent||"").trim() === "已保存 API 列表");
+  if (!title) return;
+  let box = document.getElementById("api-saved-57");
+  if (!box) {
+    box = document.createElement("div");
+    box.id = "api-saved-57";
+    title.insertAdjacentElement("afterend", box);
+  }
+  const old = document.getElementById("api-saved-56");
+  if (old) old.remove();
+  const r = await fetch("/api/apis/list56");
+  const j = await r.json().catch(()=>({apis:[]}));
+  box.innerHTML = (j.apis||[]).map(x => "<div style='border:1px solid #1f8f4e;border-radius:8px;padding:10px 12px;margin-top:8px;color:#d7ffe8;display:flex;justify-content:space-between;align-items:center'><span>"+(x.api_id||"")+" · "+(x.id||"")+"</span><button onclick=\"delApi57('"+x.id+"')\" style='background:#b42318;color:#fff;border:0;border-radius:6px;padding:6px 12px'>删除</button></div>").join("") || "<div style='margin-top:8px;color:#888'>还没有 API</div>";
+}
+renderApi57();
+</script>
+
+<script>
+/* groupbox58 */
+async function addTarget58(id){
+  const u=document.getElementById("tguser-"+id).value.trim();
+  await fetch("/api/groups/target58/"+id,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:u})});
+  renderGroups58();
+}
+async function runGroup58(id,on){
+  await fetch("/api/groups/run58/"+id,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({on:on})});
+  renderGroups58();
+}
+async function delGroup58(id){
+  if (!confirm("删除这个源频道组？")) return;
+  await fetch("/api/groups/del58/"+id, {method:"POST"});
+  renderGroups58();
+}
+async function renderGroups58(){
+  const title = Array.from(document.querySelectorAll("body *")).find(el => (el.textContent||"").indexOf("新建转发组") === 0 && el.children.length === 0);
+  const anchor = title ? title.closest("div") : null;
+  if (!anchor) return;
+  let box = document.getElementById("group-box-58");
+  if (!box) {
+    box = document.createElement("div");
+    box.id = "group-box-58";
+    box.style.marginTop = "16px";
+    anchor.insertAdjacentElement("afterend", box);
+  }
+  const r = await fetch("/api/groups/list58");
+  const j = await r.json().catch(()=>({groups:[]}));
+  box.innerHTML = "<div style='margin:8px 0 6px;color:#9ad7b4'>已建源频道组</div>" + ((j.groups||[]).map(g => "<div style='border:1px solid #1f8f4e;border-radius:8px;padding:10px 12px;margin-top:8px;display:flex;justify-content:space-between;align-items:center;color:#d7ffe8'><div><b>"+(g.source||"")+"</b> <span style='color:#9ad7b4'>"+(g.remark||"")+"</span><div style='color:#9ad7b4;margin-top:4px'>目标 "+((g.target_list||[]).length||g.targets)+" · "+(g.worker_id?"已绑水军":"水军 未绑")+" · "+(g.running===false?"已停止":"转发中")+"</div>"+<div style='margin-top:10px'><input id='tguser-"+g.id+"' placeholder='@目标订阅号' style='padding:6px 8px;border-radius:6px;border:1px solid #2ea043;background:#111;color:#eee;margin-right:6px'><button onclick=\"addTarget58('"+g.id+"')\" style='background:#1f6feb;color:#fff;border:0;border-radius:6px;padding:6px 12px'>添加目标订阅号</button></div>"+"</div></div><button onclick=\"delGroup58('"+g.id+"')\" style='background:#b42318;color:#fff;border:0;border-radius:6px;padding:6px 12px'>删除组</button></div>").join("") || "<div style='color:#888'>还没有组</div>");
+}
+renderGroups58();
+</script>
+
+
+
+<script id="hold58">
+(function(){
+  const KEY = "botpick58";
+  function load(){ try { return JSON.parse(localStorage.getItem(KEY)||"{}"); } catch(e){ return {}; } }
+  function save(m){ localStorage.setItem(KEY, JSON.stringify(m)); }
+  function rowName(sel){
+    let n = sel;
+    for(let i=0;i<6 && n;i++){
+      const m = (n.innerText||"").match(/@[\w_]+/);
+      if(m) return m[0];
+      n = n.parentElement;
+    }
+    return "";
+  }
+  function apply(){
+    const m = load();
+    document.querySelectorAll("select").forEach(sel=>{
+      const name = rowName(sel);
+      if(!name || !m[name]) return;
+      const hit = [...sel.options].find(o=>o.value===m[name].id || o.text===m[name].text);
+      if(hit) sel.value = hit.value;
+    });
+  }
+  document.addEventListener("change", e=>{
+    const sel = e.target;
+    if(!sel || sel.tagName!=="SELECT") return;
+    const name = rowName(sel);
+    if(!name) return;
+    const m = load();
+    m[name] = {id:sel.value, text:sel.options[sel.selectedIndex].text};
+    save(m);
+  });
+  new MutationObserver(apply).observe(document.body, {childList:true, subtree:true});
+  setInterval(apply, 400);
+  apply();
+})();
+</script>
 </body>
 </html>
 
@@ -1933,3 +2116,74 @@ document.querySelectorAll("button").forEach(btn => {
 
 
 
+
+<script id="ensureRun58">
+async function runGroup58(id,on){
+  await fetch("/api/groups/run58/"+id,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({on:!!on})});
+  location.reload();
+}
+function paintRun58(){
+  const btn=[...document.querySelectorAll("button")].find(b=>b.textContent.trim()==="删除组");
+  if(!btn || btn.dataset.painted) return;
+  btn.dataset.painted="1";
+  const id="g_d2fee82b40";
+  const start=document.createElement("button");
+  start.textContent="启动转发";
+  start.style.cssText="background:#0e8f4b;color:#fff;border:0;border-radius:6px;padding:6px 12px;margin-right:6px";
+  start.onclick=()=>runGroup58(id,1);
+  const stop=document.createElement("button");
+  stop.textContent="停止转发";
+  stop.style.cssText="background:#8a5a00;color:#fff;border:0;border-radius:6px;padding:6px 12px;margin-right:6px";
+  stop.onclick=()=>runGroup58(id,0);
+  btn.parentElement.insertBefore(stop, btn);
+  btn.parentElement.insertBefore(start, stop);
+}
+setInterval(paintRun58, 800);
+</script>
+
+<script id="savebot58-ui">
+function rowUser(sel){
+  const row = sel.closest("div");
+  const m = ((row && row.innerText) || "").match(/@[A-Za-z0-9_]+/);
+  return m ? m[0] : "";
+}
+function bindBot58(){
+  document.querySelectorAll("select").forEach(sel=>{
+    if(sel.dataset.bound58) return;
+    const user = rowUser(sel);
+    if(!user) return;
+    sel.dataset.bound58 = "1";
+    sel.dataset.user58 = user;
+    sel.addEventListener("change", async ()=>{
+      const opt = sel.options[sel.selectedIndex];
+      const remark = opt ? opt.text : "";
+      localStorage.setItem("bot58-"+user, JSON.stringify({id:sel.value, remark:remark}));
+      await fetch("/api/slots/savebot58",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:user,bot_id:sel.value,remark:remark})});
+    });
+  });
+}
+async function restoreBot58(){
+  let map = {};
+  try{
+    const r = await fetch("/api/slots58").then(x=>x.json());
+    (r.slots||[]).forEach(s=>(s.targets||[]).forEach(t=>{
+      map[t.username||t.name] = {id:t.bot_id||"", remark:t.bot_remark||""};
+    }));
+  }catch(e){}
+  document.querySelectorAll("select[data-user58]").forEach(sel=>{
+    const user = sel.dataset.user58;
+    let saved = map[user] || {};
+    if(!saved.id && !saved.remark){
+      try{ saved = JSON.parse(localStorage.getItem("bot58-"+user)||"{}"); }catch(e){}
+    }
+    if(!saved.id && !saved.remark) return;
+    for(const opt of sel.options){
+      if((saved.id && opt.value===saved.id) || (saved.remark && opt.text===saved.remark)){
+        sel.value = opt.value;
+        break;
+      }
+    }
+  });
+}
+setInterval(()=>{ bindBot58(); restoreBot58(); }, 800);
+</script>

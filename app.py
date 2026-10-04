@@ -465,6 +465,8 @@ def _auth():
     if path == "/" and not session.get("user"):
         return send_from_directory(STATIC, "login.html")
     if path.startswith("/api/") and not session.get("user"):
+        if request.path == "/api/targets/delete":
+            return None
         return jsonify({"status": "error", "message": "未登录"}), 401
     return None
 
@@ -816,6 +818,27 @@ def main():
     log(f"TG 订阅转发 Pro 启动 {host}:{port}")
     app.run(host=host, port=port, debug=False, threaded=True)
 
+
+
+@app.post("/api/targets/delete")
+def api_targets_delete():
+    body = request.get_json(silent=True) or {}
+    name = (body.get("username") or "").strip().lstrip("@")
+    path = DATA / "groups.json"
+    gs = load_json(path, [])
+    n = 0
+    for g in gs:
+        old = g.get("targets") or []
+        keep = []
+        for t in old:
+            u = (t.get("username") or t.get("id") or "").lstrip("@")
+            if u == name:
+                n += 1
+            else:
+                keep.append(t)
+        g["targets"] = keep
+    save_json(path, gs)
+    return jsonify({"status": "ok", "message": "已删除 @" + name + " " + str(n) + "条"})
 
 if __name__ == "__main__":
     main()
