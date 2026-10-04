@@ -1253,10 +1253,20 @@ async function fillStats_old(){
           + '<button class="btn btn-danger btn-sm" onclick="delTargetRow(\''+g.id+'\',\''+t.id+'\')">删除</button>'
           + '</div>';
       }).join("");
-      return '<div style="display:grid;grid-template-columns:260px 1fr;width:100%;min-width:980px;border:1px solid #22c55e;margin-top:10px">'
-        + '<div style="border-right:1px solid #22c55e;padding:12px"><b>'+(g.source||"")+'</b><div style="margin-top:8px">水军 '+(w&&w.phone?w.phone:"未绑")+'</div></div>'
-        + '<div><div style="padding:8px 12px;border-bottom:1px solid #22c55e">目标 '+((g.targets||[]).length)+'</div>'+rows+'</div>'
-        + '</div>';
+      const all = g.targets || [];
+      const chunks = [];
+      for (let i = 0; i < all.length; i += 20) chunks.push(all.slice(i, i + 20));
+      if (!chunks.length) chunks.push([]);
+      return chunks.map((part, idx) => {
+        const partRows = part.map(t => {
+          const link = '<a href="https://t.me/'+String(t.username||'').replace('@','')+'" target="_blank" style="color:#86efac;min-width:220px;display:inline-block">'+(t.username||'')+'</a>';
+          const opts = '<option value="">选择中文Bot</option>' + (d.bots||[]).map(b => '<option value="'+b.id+'"'+(t.bot_id===b.id?' selected':'')+'>'+(b.remark||b.id)+'</option>').join('');
+          return '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 12px;border-bottom:1px solid #22c55e">'+link+'<select onchange="saveTargetBot(\''+g.id+'\',\''+t.id+'\',this.value)" style="min-width:280px;background:#000;color:#fff;border:1px solid #22c55e">'+opts+'</select><button class="btn btn-danger btn-sm" onclick="delTargetRow(\''+g.id+'\',\''+t.id+'\')">删除</button></div>';
+        }).join('');
+        return '<div style="display:grid;grid-template-columns:260px 1fr;width:100%;min-width:980px;border:1px solid #22c55e;margin-top:10px">'
+          + '<div style="border-right:1px solid #22c55e;padding:12px"><b>第'+(idx+1)+'组</b><div style="margin-top:8px">'+(g.source||'')+'</div><div style="margin-top:8px">水军 '+(w&&w.phone?w.phone:'未绑')+'</div><div style="margin-top:8px">'+part.length+'/20</div></div>'
+          + '<div><div style="padding:8px 12px;border-bottom:1px solid #22c55e">目标 '+part.length+'</div>'+partRows+'</div></div>';
+      }).join('');
     }).join("") || '<div style="color:#94a3b8">还没有转发组</div>';
     const box = document.getElementById("worker-cols");
     if(box) box.innerHTML = ghtml;
@@ -1799,10 +1809,11 @@ async function paint10(){
   for (let n = 1; n <= 10; n++) {
     const w = workers[n - 1];
     const on = n === window.__gPick;
-    left.push(`<div data-n="${n}" style="padding:8px 10px;cursor:pointer;border-bottom:1px solid #163;background:${on ? "#123" : "transparent"}">${on ? "● " : ""}第${n}组<div class="muted">${w ? w.phone : "空"} ${w ? "已绑" : "0/10"}</div></div>`);
+    left.push(`<div data-n="${n}" style="padding:8px 10px;cursor:pointer;border-bottom:1px solid #163;background:${on ? "#123" : "transparent"}">${on ? "● " : ""}第${n}组<div class="muted">${w ? w.phone + " 已绑" : "空"} ${Math.max(0, Math.min(20, targets.length - (n - 1) * 20))}/20</div></div>`);
   }
   const w = workers[window.__gPick - 1];
-  const rows = window.__gPick === 1 ? targets : [];
+  const PER = 20;
+  const rows = targets.slice((window.__gPick - 1) * PER, window.__gPick * PER);
   const body = rows.map(t => {
     const name = t.username || "";
     const opts = [`<option value="">选择中文Bot</option>`].concat(bots.map(b => `<option value="${b.id}" ${t.bot_id===b.id?"selected":""}>${b.remark || "Bot"}</option>`)).join("");
